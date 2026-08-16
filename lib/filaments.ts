@@ -8,7 +8,6 @@ export type FilamentUsage = {
 
 export type Filament = {
   id: string
-  name: string
   color: string
   material: string
   totalWeight: number // gramas

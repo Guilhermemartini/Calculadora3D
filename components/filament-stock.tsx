@@ -8,10 +8,11 @@ import {
   FILAMENTS_KEY,
   FILAMENT_MATERIALS,
   createId,
+  formatDateTime,
   formatGrams,
   remainingPercent,
 } from "@/lib/filaments"
-import { Droplet, Layers, MinusCircle, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Droplet, History, Layers, MinusCircle, Pencil, Plus, Trash2, X } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 
 type FormState = {
@@ -45,6 +46,8 @@ export function FilamentStock() {
 
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  const [historyId, setHistoryId] = useState<string | null>(null)
+
   // Carrega do navegador
   useEffect(() => {
     try {
@@ -76,6 +79,10 @@ export function FilamentStock() {
   const deleteTarget = useMemo(
     () => filaments.find((f) => f.id === deleteId) ?? null,
     [filaments, deleteId],
+  )
+  const historyTarget = useMemo(
+    () => filaments.find((f) => f.id === historyId) ?? null,
+    [filaments, historyId],
   )
 
   function openNew() {
@@ -120,15 +127,37 @@ export function FilamentStock() {
   function confirmUse() {
     if (!useTarget) return
     const amount = Math.max(0, useAmount)
+    const entry = { id: createId(), amount, date: new Date().toISOString() }
     setFilaments((prev) =>
       prev.map((f) =>
         f.id === useTarget.id
-          ? { ...f, currentWeight: Math.max(0, f.currentWeight - amount) }
+          ? {
+              ...f,
+              currentWeight: Math.max(0, f.currentWeight - amount),
+              usage: [entry, ...(f.usage ?? [])],
+            }
           : f,
       ),
     )
     setUseId(null)
     setUseAmount(0)
+  }
+
+  function removeUsage(filamentId: string, entryId: string) {
+    setFilaments((prev) =>
+      prev.map((f) => {
+        if (f.id !== filamentId) return f
+        const entry = (f.usage ?? []).find((u) => u.id === entryId)
+        if (!entry) return f
+        // Devolve a quantidade ao peso restante, sem ultrapassar o peso total.
+        const restored = Math.min(f.totalWeight, f.currentWeight + entry.amount)
+        return {
+          ...f,
+          currentWeight: restored,
+          usage: (f.usage ?? []).filter((u) => u.id !== entryId),
+        }
+      }),
+    )
   }
 
   function confirmDelete() {
@@ -187,6 +216,7 @@ export function FilamentStock() {
               }}
               onEdit={() => openEdit(f)}
               onDelete={() => setDeleteId(f.id)}
+              onHistory={() => setHistoryId(f.id)}
             />
           ))}
         </div>
@@ -317,6 +347,57 @@ export function FilamentStock() {
           </>
         ) : null}
       </Modal>
+
+      {/* Modal Histórico */}
+      <Modal open={!!historyTarget} onClose={() => setHistoryId(null)} title="Histórico de uso">
+        {historyTarget ? (
+          <div className="px-5 py-5">
+            <p className="mb-4 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{historyTarget.name}</span> —{" "}
+              {(historyTarget.usage?.length ?? 0) === 0
+                ? "nenhuma utilização registrada."
+                : `${historyTarget.usage?.length} ${
+                    historyTarget.usage?.length === 1 ? "registro" : "registros"
+                  }.`}
+            </p>
+
+            {(historyTarget.usage?.length ?? 0) === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-background px-6 py-10 text-center">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                  <History className="size-5" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Utilize este filamento para registrar o primeiro consumo.
+                </p>
+              </div>
+            ) : (
+              <ul className="flex max-h-[50svh] flex-col gap-2 overflow-y-auto">
+                {historyTarget.usage?.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatGrams(u.amount)} g
+                      </p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(u.date)}</p>
+                    </div>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => removeUsage(historyTarget.id, u.id)}
+                      aria-label="Remover registro"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }
@@ -326,14 +407,17 @@ function FilamentCard({
   onUse,
   onEdit,
   onDelete,
+  onHistory,
 }: {
   filament: Filament
   onUse: () => void
   onEdit: () => void
   onDelete: () => void
+  onHistory: () => void
 }) {
   const pct = remainingPercent(filament)
   const low = pct <= 15
+  const usageCount = filament.usage?.length ?? 0
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-5 text-card-foreground shadow-sm">
@@ -373,6 +457,20 @@ function FilamentCard({
         <Button size="sm" className="flex-1" onClick={onUse}>
           <Droplet />
           Utilizar
+        </Button>
+        <Button
+          size="icon-sm"
+          variant="outline"
+          onClick={onHistory}
+          aria-label={`Histórico de uso${usageCount ? ` (${usageCount})` : ""}`}
+          className="relative"
+        >
+          <History />
+          {usageCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+              {usageCount}
+            </span>
+          ) : null}
         </Button>
         <Button size="icon-sm" variant="outline" onClick={onEdit} aria-label="Editar">
           <Pencil />

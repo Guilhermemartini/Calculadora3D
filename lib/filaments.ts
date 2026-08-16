@@ -1,5 +1,11 @@
 import { MATERIALS } from "@/lib/calc"
 
+export type FilamentUsage = {
+  id: string
+  amount: number // gramas utilizadas
+  date: string // ISO
+}
+
 export type Filament = {
   id: string
   name: string
@@ -8,6 +14,7 @@ export type Filament = {
   totalWeight: number // gramas
   currentWeight: number // gramas restantes
   rollPrice: number // valor do rolo (R$)
+  usage?: FilamentUsage[] // histórico de utilizações
 }
 
 export const FILAMENT_MATERIALS = MATERIALS
@@ -29,4 +36,16 @@ export function remainingPercent(f: Pick<Filament, "totalWeight" | "currentWeigh
 
 export function formatGrams(g: number): string {
   return g.toLocaleString("pt-BR", { maximumFractionDigits: 0 })
+}
+
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "-"
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }

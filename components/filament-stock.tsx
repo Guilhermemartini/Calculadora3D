@@ -250,7 +250,12 @@ export function FilamentStock() {
               suffix="g"
             />
           </Field>
-          <Field label="Peso atual" htmlFor="fil-current" hint="Quanto resta no rolo.">
+          <Field
+            label="Peso atual"
+            htmlFor="fil-current"
+            hint="Quanto resta no rolo."
+            className="sm:col-span-2"
+          >
             <NumberInput
               id="fil-current"
               value={form.currentWeight}

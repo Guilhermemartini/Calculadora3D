@@ -16,7 +16,6 @@ import { Droplet, History, Layers, MinusCircle, Pencil, Plus, Trash2, X } from "
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 
 type FormState = {
-  name: string
   color: string
   material: string
   totalWeight: number
@@ -25,7 +24,6 @@ type FormState = {
 }
 
 const EMPTY_FORM: FormState = {
-  name: "",
   color: "",
   material: FILAMENT_MATERIALS[0] ?? "PLA",
   totalWeight: 1000,
@@ -94,7 +92,6 @@ export function FilamentStock() {
   function openEdit(f: Filament) {
     setEditingId(f.id)
     setForm({
-      name: f.name,
       color: f.color,
       material: f.material,
       totalWeight: f.totalWeight,
@@ -166,7 +163,7 @@ export function FilamentStock() {
     setDeleteId(null)
   }
 
-  const formValid = form.name.trim().length > 0 && form.totalWeight > 0
+  const formValid = form.color.trim().length > 0 && form.totalWeight > 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -229,20 +226,12 @@ export function FilamentStock() {
         title={editingId ? "Editar filamento" : "Novo filamento"}
       >
         <div className="grid grid-cols-1 gap-4 px-5 py-5 sm:grid-cols-2">
-          <Field label="Nome" htmlFor="fil-name" className="sm:col-span-2">
-            <TextInput
-              id="fil-name"
-              value={form.name}
-              onChange={(v) => setForm((p) => ({ ...p, name: v }))}
-              placeholder="Ex.: PLA Preto Premium"
-            />
-          </Field>
-          <Field label="Cor" htmlFor="fil-color">
+          <Field label="Cor" htmlFor="fil-color" className="sm:col-span-2">
             <TextInput
               id="fil-color"
               value={form.color}
               onChange={(v) => setForm((p) => ({ ...p, color: v }))}
-              placeholder="Ex.: Preto"
+              placeholder="Ex.: Preto Premium"
             />
           </Field>
           <Field label="Material" htmlFor="fil-material">
@@ -294,7 +283,7 @@ export function FilamentStock() {
           <>
             <div className="px-5 py-5">
               <p className="mb-4 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{useTarget.name}</span> — restam{" "}
+                <span className="font-medium text-foreground">{useTarget.color}</span> — restam{" "}
                 {formatGrams(useTarget.currentWeight)} g.
               </p>
               <Field label="Quantidade utilizada" htmlFor="use-amount">
@@ -331,7 +320,7 @@ export function FilamentStock() {
             <div className="px-5 py-5">
               <p className="text-sm text-muted-foreground">
                 Tem certeza que deseja excluir{" "}
-                <span className="font-medium text-foreground">{deleteTarget.name}</span>? Esta ação
+                <span className="font-medium text-foreground">{deleteTarget.color}</span>? Esta ação
                 não pode ser desfeita.
               </p>
             </div>
@@ -353,7 +342,7 @@ export function FilamentStock() {
         {historyTarget ? (
           <div className="px-5 py-5">
             <p className="mb-4 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{historyTarget.name}</span> —{" "}
+              <span className="font-medium text-foreground">{historyTarget.color}</span> —{" "}
               {(historyTarget.usage?.length ?? 0) === 0
                 ? "nenhuma utilização registrada."
                 : `${historyTarget.usage?.length} ${
@@ -423,10 +412,9 @@ function FilamentCard({
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-5 text-card-foreground shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold leading-tight">{filament.name}</h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <h3 className="truncate text-base font-semibold leading-tight">
             {filament.color || "Sem cor"}
-          </p>
+          </h3>
         </div>
         <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {filament.material}

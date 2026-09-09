@@ -1,5 +1,6 @@
 "use client"
 
+import { getCalculatorSettings, saveCalculatorSettings } from "@/app/actions/settings"
 import { AdvancedParamsSection } from "@/components/advanced-params"
 import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
 import { QuoteDialog } from "@/components/quote-dialog"
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   type AdvancedParams,
   type CalculatorInput,
+  type AdditionalCosts,
   DEFAULT_PARAMS,
   FINISHING_LABELS,
   type Finishing,
@@ -19,8 +21,6 @@ import {
 import { Box, Clock, FileText, Package } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-const PARAMS_KEY = "print3d:params"
-
 const DEFAULT_INPUT: CalculatorInput = {
   filamentOnly: false,
   weight: 20,
@@ -30,6 +30,7 @@ const DEFAULT_INPUT: CalculatorInput = {
   filamentPricePerKg: 100,
   quantity: 1,
   finishing: "none",
+  additionalCosts: "none",
   urgency: "normal",
   discountValue: 0,
   discountType: "brl",
@@ -41,28 +42,48 @@ export function PricingCalculator() {
   const [loaded, setLoaded] = useState(false)
   const [quoteOpen, setQuoteOpen] = useState(false)
 
-  // Carrega parâmetros salvos do navegador
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PARAMS_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        setParams({ ...DEFAULT_PARAMS, ...parsed, urgency: { ...DEFAULT_PARAMS.urgency, ...parsed.urgency } })
-      }
-    } catch {
-      // ignora
-    }
+    getCalculatorSettings()
+      .then((saved) =>
+        setParams({
+          ...DEFAULT_PARAMS,
+          hourlyRate: saved.hourlyRate,
+          profitMargin: saved.profitMargin,
+          sandingCost: saved.sandingCost,
+          paintingCost: saved.paintingCost,
+          packagingQuantity: saved.packagingQuantity,
+          packagingTotalCost: saved.packagingTotalCost,
+          accessoryQuantity: saved.accessoryQuantity,
+          accessoryTotalCost: saved.accessoryTotalCost,
+          urgency: {
+            normal: saved.urgencyNormal,
+            urgent: saved.urgencyUrgent,
+            veryUrgent: saved.urgencyVeryUrgent,
+          },
+        }),
+      )
+      .catch(() => undefined)
     setLoaded(true)
   }, [])
 
-  // Salva parâmetros automaticamente
   useEffect(() => {
     if (!loaded) return
-    try {
-      localStorage.setItem(PARAMS_KEY, JSON.stringify(params))
-    } catch {
-      // ignora
-    }
+    const timer = window.setTimeout(() => {
+      saveCalculatorSettings({
+        hourlyRate: params.hourlyRate,
+        profitMargin: params.profitMargin,
+        sandingCost: params.sandingCost,
+        paintingCost: params.paintingCost,
+        urgencyNormal: params.urgency.normal,
+        urgencyUrgent: params.urgency.urgent,
+        urgencyVeryUrgent: params.urgency.veryUrgent,
+        packagingQuantity: params.packagingQuantity,
+        packagingTotalCost: params.packagingTotalCost,
+        accessoryQuantity: params.accessoryQuantity,
+        accessoryTotalCost: params.accessoryTotalCost,
+      }).catch(() => undefined)
+    }, 400)
+    return () => window.clearTimeout(timer)
   }, [params, loaded])
 
   const result = useMemo(() => calculate(input, params), [input, params])
@@ -187,6 +208,19 @@ export function PricingCalculator() {
                   value: f,
                   label: FINISHING_LABELS[f],
                 }))}
+              />
+            </Field>
+            <Field label="Custos adicionais">
+              <Select
+                value={input.additionalCosts}
+                onChange={(v) => set("additionalCosts", v as AdditionalCosts)}
+                disabled={filamentOnly}
+                options={[
+                  { value: "none", label: "Nenhum" },
+                  { value: "packaging", label: "Embalagem" },
+                  { value: "accessory", label: "Acessório" },
+                  { value: "both", label: "Embalagem e Acessório" },
+                ]}
               />
             </Field>
             <Field label="Urgência">

@@ -86,7 +86,7 @@ export function AdvancedParamsSection({
             <div>
               <p className="text-sm font-medium text-foreground">Arredondar valor</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                Arredonda o valor final para cima até a próxima dezena.
+                Arredonda o valor final para cima até o próximo número inteiro.
               </p>
             </div>
             <Switch

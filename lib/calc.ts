@@ -87,6 +87,10 @@ function unitCost(quantity: number, totalCost: number): number {
   return quantity > 0 ? Math.max(0, totalCost) / quantity : 0
 }
 
+function roundFinalValue(value: number, enabled: boolean): number {
+  return enabled ? Math.ceil(value) : value
+}
+
 export function calculate(input: CalculatorInput, params: AdvancedParams): CalculationResult {
   const qty = Math.max(1, input.quantity || 0)
   const weight = Math.max(0, input.weight || 0)
@@ -117,11 +121,8 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
       profit: 0,
       urgencyAmount: 0,
       discountAmount: 0,
-      final: params.roundFinalValue ? Math.ceil(filamentCost / 10) * 10 : filamentCost,
-      finalPerPiece:
-        qty > 0
-          ? (params.roundFinalValue ? Math.ceil(filamentCost / 10) * 10 : filamentCost) / qty
-          : 0,
+      final: roundFinalValue(filamentCost, params.roundFinalValue),
+      finalPerPiece: qty > 0 ? roundFinalValue(filamentCost, params.roundFinalValue) / qty : 0,
     }
   }
 
@@ -156,7 +157,7 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
   }
   // 10. Valor final
   const calculatedFinal = Math.max(0, afterUrgency - discountAmount)
-  const final = params.roundFinalValue ? Math.ceil(calculatedFinal / 10) * 10 : calculatedFinal
+  const final = roundFinalValue(calculatedFinal, params.roundFinalValue)
 
   return {
     pricePerGram,

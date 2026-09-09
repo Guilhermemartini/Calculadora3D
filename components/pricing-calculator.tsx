@@ -55,6 +55,7 @@ export function PricingCalculator() {
           packagingTotalCost: saved.packagingTotalCost,
           accessoryQuantity: saved.accessoryQuantity,
           accessoryTotalCost: saved.accessoryTotalCost,
+          roundFinalValue: saved.roundFinalValue,
           urgency: {
             normal: saved.urgencyNormal,
             urgent: saved.urgencyUrgent,
@@ -81,6 +82,7 @@ export function PricingCalculator() {
         packagingTotalCost: params.packagingTotalCost,
         accessoryQuantity: params.accessoryQuantity,
         accessoryTotalCost: params.accessoryTotalCost,
+        roundFinalValue: params.roundFinalValue,
       }).catch(() => undefined)
     }, 400)
     return () => window.clearTimeout(timer)

@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   packagingTotalCost: 0,
   accessoryQuantity: 0,
   accessoryTotalCost: 0,
+  roundFinalValue: false,
 }
 
 export async function getCalculatorSettings() {
@@ -33,6 +34,7 @@ export async function getCalculatorSettings() {
     packagingTotalCost: Number(row.packaging_total_cost ?? 0),
     accessoryQuantity: Number(row.accessory_quantity ?? 0),
     accessoryTotalCost: Number(row.accessory_total_cost ?? 0),
+    roundFinalValue: Boolean(row.round_final_value),
   }
 }
 
@@ -41,11 +43,11 @@ export async function saveCalculatorSettings(settings: typeof DEFAULT_SETTINGS) 
     INSERT INTO calculator_settings (
       id, hourly_rate, profit_margin, sanding_cost, painting_cost,
       urgency_normal, urgency_urgent, urgency_very_urgent,
-      packaging_quantity, packaging_total_cost, accessory_quantity, accessory_total_cost, updated_at
+      packaging_quantity, packaging_total_cost, accessory_quantity, accessory_total_cost, round_final_value, updated_at
     ) VALUES (
       'default', ${settings.hourlyRate}, ${settings.profitMargin}, ${settings.sandingCost}, ${settings.paintingCost},
       ${settings.urgencyNormal}, ${settings.urgencyUrgent}, ${settings.urgencyVeryUrgent},
-      ${settings.packagingQuantity}, ${settings.packagingTotalCost}, ${settings.accessoryQuantity}, ${settings.accessoryTotalCost}, now()
+      ${settings.packagingQuantity}, ${settings.packagingTotalCost}, ${settings.accessoryQuantity}, ${settings.accessoryTotalCost}, ${settings.roundFinalValue}, now()
     )
     ON CONFLICT (id) DO UPDATE SET
       hourly_rate = EXCLUDED.hourly_rate, profit_margin = EXCLUDED.profit_margin,
@@ -54,6 +56,7 @@ export async function saveCalculatorSettings(settings: typeof DEFAULT_SETTINGS) 
       urgency_very_urgent = EXCLUDED.urgency_very_urgent,
       packaging_quantity = EXCLUDED.packaging_quantity, packaging_total_cost = EXCLUDED.packaging_total_cost,
       accessory_quantity = EXCLUDED.accessory_quantity, accessory_total_cost = EXCLUDED.accessory_total_cost,
+      round_final_value = EXCLUDED.round_final_value,
       updated_at = now()
   `)
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { Field, NumberInput } from "@/components/form-controls"
+import { Field, NumberInput, Switch } from "@/components/form-controls"
 import type { AdvancedParams } from "@/lib/calc"
 import { cn } from "@/lib/utils"
 import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react"
@@ -80,6 +80,21 @@ export function AdvancedParamsSection({
             <div className="rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
               Custo por acessório: <strong className="text-foreground">R$ {(params.accessoryQuantity > 0 ? params.accessoryTotalCost / params.accessoryQuantity : 0).toFixed(2).replace(".", ",")}</strong>
             </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Arredondar valor</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                Arredonda o valor final para cima até o próximo número inteiro.
+              </p>
+            </div>
+            <Switch
+              id="round-final-value"
+              aria-label="Arredondar valor"
+              checked={params.roundFinalValue}
+              onChange={(v) => set({ roundFinalValue: v })}
+            />
           </div>
 
           <div className="mt-5">

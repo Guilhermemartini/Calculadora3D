@@ -12,6 +12,7 @@ export interface AdvancedParams {
   packagingTotalCost: number
   accessoryQuantity: number
   accessoryTotalCost: number
+  roundFinalValue: boolean
   urgency: {
     normal: number // %
     urgent: number // %
@@ -61,6 +62,7 @@ export const DEFAULT_PARAMS: AdvancedParams = {
   packagingTotalCost: 0,
   accessoryQuantity: 0,
   accessoryTotalCost: 0,
+  roundFinalValue: false,
   urgency: {
     normal: 0,
     urgent: 20,
@@ -115,8 +117,11 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
       profit: 0,
       urgencyAmount: 0,
       discountAmount: 0,
-      final: filamentCost,
-      finalPerPiece: qty > 0 ? filamentCost / qty : 0,
+      final: params.roundFinalValue ? Math.ceil(filamentCost / 10) * 10 : filamentCost,
+      finalPerPiece:
+        qty > 0
+          ? (params.roundFinalValue ? Math.ceil(filamentCost / 10) * 10 : filamentCost) / qty
+          : 0,
     }
   }
 
@@ -150,7 +155,8 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
         : input.discountValue
   }
   // 10. Valor final
-  const final = Math.max(0, afterUrgency - discountAmount)
+  const calculatedFinal = Math.max(0, afterUrgency - discountAmount)
+  const final = params.roundFinalValue ? Math.ceil(calculatedFinal / 10) * 10 : calculatedFinal
 
   return {
     pricePerGram,

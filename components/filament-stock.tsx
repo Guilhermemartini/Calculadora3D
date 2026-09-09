@@ -1,11 +1,18 @@
 "use client"
 
+import {
+  createFilament,
+  deleteFilament,
+  listFilaments,
+  removeFilamentUsage,
+  updateFilament,
+  useFilament,
+} from "@/app/actions/filaments"
 import { Field, NumberInput, Select } from "@/components/form-controls"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   type Filament,
-  FILAMENTS_KEY,
   FILAMENT_MATERIALS,
   createId,
   formatDateTime,
@@ -34,6 +41,7 @@ const EMPTY_FORM: FormState = {
 export function FilamentStock() {
   const [filaments, setFilaments] = useState<Filament[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -46,29 +54,12 @@ export function FilamentStock() {
 
   const [historyId, setHistoryId] = useState<string | null>(null)
 
-  // Carrega do navegador
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FILAMENTS_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) setFilaments(parsed)
-      }
-    } catch {
-      // ignora
-    }
-    setLoaded(true)
+    listFilaments()
+      .then((items) => setFilaments(items))
+      .catch(() => undefined)
+      .finally(() => setLoaded(true))
   }, [])
-
-  // Salva automaticamente
-  useEffect(() => {
-    if (!loaded) return
-    try {
-      localStorage.setItem(FILAMENTS_KEY, JSON.stringify(filaments))
-    } catch {
-      // ignora
-    }
-  }, [filaments, loaded])
 
   const useTarget = useMemo(
     () => filaments.find((f) => f.id === useId) ?? null,
@@ -82,6 +73,15 @@ export function FilamentStock() {
     () => filaments.find((f) => f.id === historyId) ?? null,
     [filaments, historyId],
   )
+
+  async function refreshStock() {
+    setSaving(true)
+    try {
+      setFilaments(await listFilaments())
+    } finally {
+      setSaving(false)
+    }
+  }
 
   function openNew() {
     setEditingId(null)
@@ -101,66 +101,55 @@ export function FilamentStock() {
     setFormOpen(true)
   }
 
-  function saveForm() {
+  async function saveForm() {
     const total = Math.max(0, form.totalWeight)
     const current = Math.max(0, Math.min(form.currentWeight, total || form.currentWeight))
-    if (editingId) {
-      setFilaments((prev) =>
-        prev.map((f) =>
-          f.id === editingId
-            ? { ...f, ...form, totalWeight: total, currentWeight: current }
-            : f,
-        ),
-      )
-    } else {
-      setFilaments((prev) => [
-        ...prev,
-        { id: createId(), ...form, totalWeight: total, currentWeight: current },
-      ])
+    const input = { id: editingId ?? createId(), ...form, totalWeight: total, currentWeight: current }
+    setSaving(true)
+    try {
+      if (editingId) await updateFilament(input)
+      else await createFilament(input)
+      await refreshStock()
+      setFormOpen(false)
+    } finally {
+      setSaving(false)
     }
-    setFormOpen(false)
   }
 
-  function confirmUse() {
+  async function confirmUse() {
     if (!useTarget) return
     const amount = Math.max(0, useAmount)
-    const entry = { id: createId(), amount, date: new Date().toISOString() }
-    setFilaments((prev) =>
-      prev.map((f) =>
-        f.id === useTarget.id
-          ? {
-              ...f,
-              currentWeight: Math.max(0, f.currentWeight - amount),
-              usage: [entry, ...(f.usage ?? [])],
-            }
-          : f,
-      ),
-    )
-    setUseId(null)
-    setUseAmount(0)
+    setSaving(true)
+    try {
+      await useFilament(useTarget.id, createId(), amount)
+      await refreshStock()
+      setUseId(null)
+      setUseAmount(0)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function removeUsage(filamentId: string, entryId: string) {
-    setFilaments((prev) =>
-      prev.map((f) => {
-        if (f.id !== filamentId) return f
-        const entry = (f.usage ?? []).find((u) => u.id === entryId)
-        if (!entry) return f
-        // Devolve a quantidade ao peso restante, sem ultrapassar o peso total.
-        const restored = Math.min(f.totalWeight, f.currentWeight + entry.amount)
-        return {
-          ...f,
-          currentWeight: restored,
-          usage: (f.usage ?? []).filter((u) => u.id !== entryId),
-        }
-      }),
-    )
+  async function removeUsage(filamentId: string, entryId: string) {
+    setSaving(true)
+    try {
+      await removeFilamentUsage(filamentId, entryId)
+      await refreshStock()
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return
-    setFilaments((prev) => prev.filter((f) => f.id !== deleteTarget.id))
-    setDeleteId(null)
+    setSaving(true)
+    try {
+      await deleteFilament(deleteTarget.id)
+      await refreshStock()
+      setDeleteId(null)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const formValid = form.color.trim().length > 0 && form.totalWeight > 0

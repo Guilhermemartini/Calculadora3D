@@ -82,6 +82,16 @@ export function SummaryPanel({
             value={filamentOnly ? "—" : formatBRL(result.finishingCost)}
             muted={filamentOnly}
           />
+          <Row
+            label="Embalagem"
+            value={filamentOnly ? "—" : formatBRL(result.packagingCost)}
+            muted={filamentOnly}
+          />
+          <Row
+            label="Acessório"
+            value={filamentOnly ? "—" : formatBRL(result.accessoryCost)}
+            muted={filamentOnly}
+          />
         </div>
 
         <div className="py-2">

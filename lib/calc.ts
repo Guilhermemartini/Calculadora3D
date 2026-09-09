@@ -1,12 +1,17 @@
 export type Finishing = "none" | "sanding" | "painting" | "both"
 export type Urgency = "normal" | "urgent" | "veryUrgent"
 export type DiscountType = "brl" | "percent"
+export type AdditionalCosts = "none" | "packaging" | "accessory" | "both"
 
 export interface AdvancedParams {
   hourlyRate: number // R$/h (impressora + energia)
   profitMargin: number // %
   sandingCost: number // R$
   paintingCost: number // R$
+  packagingQuantity: number
+  packagingTotalCost: number
+  accessoryQuantity: number
+  accessoryTotalCost: number
   urgency: {
     normal: number // %
     urgent: number // %
@@ -23,6 +28,7 @@ export interface CalculatorInput {
   filamentPricePerKg: number // R$/kg
   quantity: number
   finishing: Finishing
+  additionalCosts: AdditionalCosts
   urgency: Urgency
   discountValue: number
   discountType: DiscountType
@@ -36,6 +42,8 @@ export interface CalculationResult {
   filamentCost: number
   printerCost: number
   finishingCost: number
+  packagingCost: number
+  accessoryCost: number
   subtotal: number
   profit: number
   urgencyAmount: number
@@ -49,6 +57,10 @@ export const DEFAULT_PARAMS: AdvancedParams = {
   profitMargin: 40,
   sandingCost: 10,
   paintingCost: 20,
+  packagingQuantity: 0,
+  packagingTotalCost: 0,
+  accessoryQuantity: 0,
+  accessoryTotalCost: 0,
   urgency: {
     normal: 0,
     urgent: 20,
@@ -67,6 +79,10 @@ function finishingPerPiece(finishing: Finishing, params: AdvancedParams): number
     default:
       return 0
   }
+}
+
+function unitCost(quantity: number, totalCost: number): number {
+  return quantity > 0 ? Math.max(0, totalCost) / quantity : 0
 }
 
 export function calculate(input: CalculatorInput, params: AdvancedParams): CalculationResult {
@@ -93,6 +109,8 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
       filamentCost,
       printerCost: 0,
       finishingCost: 0,
+      packagingCost: 0,
+      accessoryCost: 0,
       subtotal: filamentCost,
       profit: 0,
       urgencyAmount: 0,
@@ -106,8 +124,16 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
   const printerCost = (timeTotalMinutes / 60) * (params.hourlyRate || 0)
   // 5. Acabamento
   const finishingCost = finishingPerPiece(input.finishing, params) * qty
+  const packagingCostPerPiece = unitCost(params.packagingQuantity, params.packagingTotalCost)
+  const accessoryCostPerPiece = unitCost(params.accessoryQuantity, params.accessoryTotalCost)
+  const packagingCost = ["packaging", "both"].includes(input.additionalCosts)
+    ? packagingCostPerPiece * qty
+    : 0
+  const accessoryCost = ["accessory", "both"].includes(input.additionalCosts)
+    ? accessoryCostPerPiece * qty
+    : 0
   // 6. Subtotal
-  const subtotal = filamentCost + printerCost + finishingCost
+  const subtotal = filamentCost + printerCost + finishingCost + packagingCost + accessoryCost
   // 7. Margem de lucro
   const profit = subtotal * ((params.profitMargin || 0) / 100)
   const afterProfit = subtotal + profit
@@ -134,6 +160,8 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
     filamentCost,
     printerCost,
     finishingCost,
+    packagingCost,
+    accessoryCost,
     subtotal,
     profit,
     urgencyAmount,

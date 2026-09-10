@@ -19,8 +19,9 @@ import {
   formatGrams,
   remainingPercent,
 } from "@/lib/filaments"
-import { Droplet, History, Layers, MinusCircle, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Download, Droplet, History, Layers, MinusCircle, Pencil, Plus, Trash2, X } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
+import * as XLSX from "xlsx"
 
 type FormState = {
   color: string
@@ -42,6 +43,7 @@ export function FilamentStock() {
   const [filaments, setFilaments] = useState<Filament[]>([])
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -81,6 +83,44 @@ export function FilamentStock() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function exportSelected() {
+    const selected = filaments.filter((filament) => selectedIds.has(filament.id))
+    if (selected.length === 0) return
+
+    const rows = selected.map((filament) => {
+      const usedWeight = Math.max(0, filament.totalWeight - filament.currentWeight)
+      return {
+        "Nome/Cor": filament.color,
+        Material: filament.material,
+        "Quantidade total (g)": filament.totalWeight,
+        "Quantidade utilizada (g)": usedWeight,
+        "Quantidade disponível (g)": filament.currentWeight,
+        "Valor do rolo (R$)": filament.rollPrice,
+      }
+    })
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 20 },
+    ]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Filamentos")
+    XLSX.writeFile(workbook, `filamentos-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   function openNew() {
@@ -145,6 +185,11 @@ export function FilamentStock() {
     setSaving(true)
     try {
       await deleteFilament(deleteTarget.id)
+      setSelectedIds((current) => {
+        const next = new Set(current)
+        next.delete(deleteTarget.id)
+        return next
+      })
       await refreshStock()
       setDeleteId(null)
     } finally {
@@ -167,10 +212,18 @@ export function FilamentStock() {
             </p>
           </div>
         </div>
-        <Button size="lg" className="h-10" onClick={openNew}>
-          <Plus />
-          Novo Filamento
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedIds.size > 0 ? (
+            <Button variant="outline" size="lg" className="h-10" onClick={exportSelected}>
+              <Download />
+              Baixar planilha ({selectedIds.size})
+            </Button>
+          ) : null}
+          <Button size="lg" className="h-10" onClick={openNew}>
+            <Plus />
+            Novo Filamento
+          </Button>
+        </div>
       </div>
 
       {/* Lista */}
@@ -203,6 +256,8 @@ export function FilamentStock() {
               onEdit={() => openEdit(f)}
               onDelete={() => setDeleteId(f.id)}
               onHistory={() => setHistoryId(f.id)}
+              selected={selectedIds.has(f.id)}
+              onToggleSelect={() => toggleSelected(f.id)}
             />
           ))}
         </div>
@@ -391,24 +446,42 @@ function FilamentCard({
   onEdit,
   onDelete,
   onHistory,
+  selected,
+  onToggleSelect,
 }: {
   filament: Filament
   onUse: () => void
   onEdit: () => void
   onDelete: () => void
   onHistory: () => void
+  selected: boolean
+  onToggleSelect: () => void
 }) {
   const pct = remainingPercent(filament)
   const low = pct <= 15
   const usageCount = filament.usage?.length ?? 0
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-5 text-card-foreground shadow-sm">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border bg-card px-5 py-5 text-card-foreground shadow-sm transition-colors",
+        selected ? "border-primary ring-2 ring-primary/20" : "border-border",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold leading-tight">
-            {filament.color || "Sem cor"}
-          </h3>
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Selecionar filamento ${filament.color}`}
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+          />
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold leading-tight">
+              {filament.color || "Sem cor"}
+            </h3>
+          </div>
         </div>
         <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {filament.material}

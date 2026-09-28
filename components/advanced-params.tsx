@@ -82,24 +82,6 @@ export function AdvancedParamsSection({
             </div>
           </div>
 
-          <div className="mt-5 rounded-xl border border-border bg-muted/30 px-4 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-foreground">Calcular frete</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">Informe a distância para incluir o deslocamento no orçamento.</p>
-              </div>
-              <Switch checked={params.freightEnabled} onChange={(v) => set({ freightEnabled: v })} aria-label="Calcular frete" />
-            </div>
-            {params.freightEnabled ? (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Origem"><input className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={params.freightOrigin} onChange={(e) => set({ freightOrigin: e.target.value })} placeholder="Ex.: Oficina" /></Field>
-                <Field label="Destino"><input className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={params.freightDestination} onChange={(e) => set({ freightDestination: e.target.value })} placeholder="Ex.: Cliente" /></Field>
-                <Field label="Distância"><NumberInput value={params.freightDistanceKm} onChange={(v) => set({ freightDistanceKm: v })} suffix="km" min={0} /></Field>
-                <Field label="Veículo"><select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={params.vehicle} onChange={(e) => set({ vehicle: e.target.value as AdvancedParams["vehicle"] })}><option value="car">Carro</option><option value="motorcycle">Moto</option></select></Field>
-              </div>
-            ) : null}
-          </div>
-
           <div className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 px-4 py-3">
             <div>
               <p className="text-sm font-medium text-foreground">Arredondar valor</p>

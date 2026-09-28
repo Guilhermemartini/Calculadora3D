@@ -2,6 +2,7 @@ export type Finishing = "none" | "sanding" | "painting" | "both"
 export type Urgency = "normal" | "urgent" | "veryUrgent"
 export type DiscountType = "brl" | "percent"
 export type AdditionalCosts = "none" | "packaging" | "accessory" | "both"
+export type Vehicle = "car" | "motorcycle"
 
 export interface AdvancedParams {
   hourlyRate: number // R$/h (impressora + energia)
@@ -13,6 +14,11 @@ export interface AdvancedParams {
   accessoryQuantity: number
   accessoryTotalCost: number
   roundFinalValue: boolean
+  freightEnabled: boolean
+  freightOrigin: string
+  freightDestination: string
+  freightDistanceKm: number
+  vehicle: Vehicle
   urgency: {
     normal: number // %
     urgent: number // %
@@ -33,6 +39,11 @@ export interface CalculatorInput {
   urgency: Urgency
   discountValue: number
   discountType: DiscountType
+  freightEnabled: boolean
+  freightOrigin: string
+  freightDestination: string
+  freightDistanceKm: number
+  vehicle: Vehicle
 }
 
 export interface CalculationResult {
@@ -45,6 +56,7 @@ export interface CalculationResult {
   finishingCost: number
   packagingCost: number
   accessoryCost: number
+  freightCost: number
   subtotal: number
   profit: number
   urgencyAmount: number
@@ -63,6 +75,11 @@ export const DEFAULT_PARAMS: AdvancedParams = {
   accessoryQuantity: 0,
   accessoryTotalCost: 0,
   roundFinalValue: false,
+  freightEnabled: false,
+  freightOrigin: "",
+  freightDestination: "",
+  freightDistanceKm: 0,
+  vehicle: "car",
   urgency: {
     normal: 0,
     urgent: 20,
@@ -103,6 +120,8 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
   const filamentCost = filamentCostPerPiece * qty
 
   const weightTotal = weight * qty
+  const freightRate = params.vehicle === "motorcycle" ? 0.8 : 1.2
+  const freightCost = params.freightEnabled ? Math.max(0, params.freightDistanceKm || 0) * freightRate : 0
   const timePerPieceMinutes = (input.hours || 0) * 60 + (input.minutes || 0)
   const timeTotalMinutes = timePerPieceMinutes * qty
 
@@ -117,6 +136,7 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
       finishingCost: 0,
       packagingCost: 0,
       accessoryCost: 0,
+      freightCost: 0,
       subtotal: filamentCost,
       profit: 0,
       urgencyAmount: 0,
@@ -169,6 +189,7 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
     finishingCost,
     packagingCost,
     accessoryCost,
+    freightCost,
     subtotal,
     profit,
     urgencyAmount,

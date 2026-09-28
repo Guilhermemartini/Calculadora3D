@@ -34,6 +34,11 @@ const DEFAULT_INPUT: CalculatorInput = {
   urgency: "normal",
   discountValue: 0,
   discountType: "brl",
+  freightEnabled: false,
+  freightOrigin: "",
+  freightDestination: "",
+  freightDistanceKm: 0,
+  vehicle: "car",
 }
 
 export function PricingCalculator() {

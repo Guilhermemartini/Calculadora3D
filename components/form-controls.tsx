@@ -94,6 +94,31 @@ export function NumberInput({
   )
 }
 
+export function TextInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  id?: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  type?: string
+}) {
+  return (
+    <input
+      id={id}
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className={inputBase}
+    />
+  )
+}
+
 export function Select<T extends string>({
   id,
   value,

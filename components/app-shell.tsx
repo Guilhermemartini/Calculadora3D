@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Boxes, Calculator, Layers, Menu } from "lucide-react"
+import { Boxes, Calculator, Layers, Link2, Menu } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ReactNode, useEffect, useState } from "react"
@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useState } from "react"
 const NAV = [
   { href: "/", label: "Calculadora", icon: Calculator },
   { href: "/estoque", label: "Estoque de Filamentos", icon: Layers },
+  { href: "/atalhos", label: "Atalhos", icon: Link2 },
 ]
 
 function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

@@ -121,7 +121,9 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
 
   const weightTotal = weight * qty
   const freightRate = params.vehicle === "motorcycle" ? 0.8 : 1.2
-  const freightCost = params.freightEnabled ? Math.max(0, params.freightDistanceKm || 0) * freightRate : 0
+  const freightCost = params.freightEnabled
+    ? Math.max(0, params.freightDistanceKm || 0) * freightRate
+    : 0
   const timePerPieceMinutes = (input.hours || 0) * 60 + (input.minutes || 0)
   const timeTotalMinutes = timePerPieceMinutes * qty
 
@@ -159,7 +161,7 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
     ? accessoryCostPerPiece * qty
     : 0
   // 6. Subtotal
-  const subtotal = filamentCost + printerCost + finishingCost + packagingCost + accessoryCost
+  const subtotal = filamentCost + printerCost + finishingCost + packagingCost + accessoryCost + freightCost
   // 7. Margem de lucro
   const profit = subtotal * ((params.profitMargin || 0) / 100)
   const afterProfit = subtotal + profit

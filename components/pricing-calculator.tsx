@@ -98,7 +98,19 @@ export function PricingCalculator() {
     return () => window.clearTimeout(timer)
   }, [params, loaded])
 
-  const result = useMemo(() => calculate(input, params), [input, params])
+  const calculationInput = useMemo(
+    () => ({
+      ...input,
+      freightEnabled: params.freightEnabled,
+      freightOrigin: params.freightOrigin,
+      freightDestination: params.freightDestination,
+      freightDistanceKm: params.freightDistanceKm,
+      vehicle: params.vehicle,
+    }),
+    [input, params.freightEnabled, params.freightOrigin, params.freightDestination, params.freightDistanceKm, params.vehicle],
+  )
+
+  const result = useMemo(() => calculate(calculationInput, params), [calculationInput, params])
 
   const set = <K extends keyof CalculatorInput>(key: K, value: CalculatorInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }))
@@ -115,7 +127,7 @@ export function PricingCalculator() {
         id: crypto.randomUUID(), name: budgetName.trim(), stlFileName: stlFile?.name ?? null, stlFileData: stlFile?.data ?? null, snapshotData: snapshot,
         weight: input.weight, hours: input.hours, minutes: input.minutes, printValue: result.final,
         finishes: [{ name: FINISHING_LABELS[input.finishing], value: result.finishingCost }, { name: "Embalagem", value: result.packagingCost }, { name: "Acessório", value: result.accessoryCost }].filter((item) => item.value > 0),
-        freightEnabled: input.freightEnabled, origin: input.freightOrigin || null, destination: input.freightDestination || null, distanceKm: input.freightDistanceKm, vehicle: input.vehicle, freightValue: result.freightCost, totalValue: result.final,
+        freightEnabled: calculationInput.freightEnabled, origin: calculationInput.freightOrigin || null, destination: calculationInput.freightDestination || null, distanceKm: calculationInput.freightDistanceKm, vehicle: calculationInput.vehicle, freightValue: result.freightCost, totalValue: result.final,
       })
       setBudgetSaved(true)
       window.setTimeout(() => setBudgetSaved(false), 2500)
@@ -307,7 +319,7 @@ export function PricingCalculator() {
       {/* Resumo (fixo em telas grandes) */}
       <div className="lg:sticky lg:top-6 lg:self-start">
         <div className="flex flex-col gap-4">
-          <SummaryPanel input={input} result={result} />
+          <SummaryPanel input={calculationInput} result={result} />
           <Button size="lg" className="h-11 w-full text-sm" onClick={handleSaveBudget} disabled={!budgetName.trim() || savingBudget}>
             <FileText />
             {savingBudget ? "Salvando..." : budgetSaved ? "Orçamento salvo" : "Salvar orçamento"}
@@ -321,7 +333,7 @@ export function PricingCalculator() {
       <QuoteDialog
         open={quoteOpen}
         onClose={() => setQuoteOpen(false)}
-        input={input}
+        input={calculationInput}
         result={result}
       />
     </div>

@@ -3,6 +3,7 @@
 import { deleteBudget, listBudgets, type Budget } from "@/app/actions/budgets"
 import { Button } from "@/components/ui/button"
 import { formatBRL, formatTime } from "@/lib/calc"
+import { FreightCalculator } from "@/components/freight-calculator"
 import { Edit3, FileBox, History, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -28,7 +29,8 @@ export function BudgetManager() {
   if (!items.length) return <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center"><FileBox className="mx-auto mb-3 size-9 text-muted-foreground" /><p className="text-sm text-muted-foreground">Nenhum orçamento salvo.</p><Button className="mt-4" onClick={() => window.location.assign("/")}>Criar orçamento</Button></div>
 
   return <>
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <FreightCalculator />
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => <article key={item.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <button type="button" className="block w-full text-left" onClick={() => setSelected(item)}>
           {item.snapshotData ? <img src={item.snapshotData} alt={`Preview de ${item.name}`} className="h-40 w-full bg-muted object-cover" /> : <div className="flex h-40 items-center justify-center bg-muted"><FileBox className="size-10 text-muted-foreground" /></div>}

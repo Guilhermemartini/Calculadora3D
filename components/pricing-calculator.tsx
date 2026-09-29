@@ -1,6 +1,7 @@
 "use client"
 
 import { getCalculatorSettings, saveCalculatorSettings } from "@/app/actions/settings"
+import { saveBudget } from "@/app/actions/budgets"
 import { AdvancedParamsSection } from "@/components/advanced-params"
 import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
 import { QuoteDialog } from "@/components/quote-dialog"
@@ -34,6 +35,11 @@ const DEFAULT_INPUT: CalculatorInput = {
   urgency: "normal",
   discountValue: 0,
   discountType: "brl",
+  freightEnabled: false,
+  freightOrigin: "",
+  freightDestination: "",
+  freightDistanceKm: 0,
+  vehicle: "car",
 }
 
 export function PricingCalculator() {
@@ -41,6 +47,10 @@ export function PricingCalculator() {
   const [params, setParams] = useState<AdvancedParams>(DEFAULT_PARAMS)
   const [loaded, setLoaded] = useState(false)
   const [quoteOpen, setQuoteOpen] = useState(false)
+  const [budgetName, setBudgetName] = useState("")
+  const [stlFile, setStlFile] = useState<{ name: string; data: string } | null>(null)
+  const [savingBudget, setSavingBudget] = useState(false)
+  const [budgetSaved, setBudgetSaved] = useState(false)
 
   useEffect(() => {
     getCalculatorSettings()
@@ -88,12 +98,41 @@ export function PricingCalculator() {
     return () => window.clearTimeout(timer)
   }, [params, loaded])
 
-  const result = useMemo(() => calculate(input, params), [input, params])
+  const calculationInput = useMemo(
+    () => ({
+      ...input,
+      freightEnabled: params.freightEnabled,
+      freightOrigin: params.freightOrigin,
+      freightDestination: params.freightDestination,
+      freightDistanceKm: params.freightDistanceKm,
+      vehicle: params.vehicle,
+    }),
+    [input, params.freightEnabled, params.freightOrigin, params.freightDestination, params.freightDistanceKm, params.vehicle],
+  )
+
+  const result = useMemo(() => calculate(calculationInput, params), [calculationInput, params])
 
   const set = <K extends keyof CalculatorInput>(key: K, value: CalculatorInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }))
 
   const filamentOnly = input.filamentOnly
+
+  async function handleSaveBudget() {
+    if (!budgetName.trim() || savingBudget) return
+    setSavingBudget(true)
+    try {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="420"><rect width="100%" height="100%" fill="#171717"/><text x="50%" y="48%" text-anchor="middle" fill="#f97316" font-size="34" font-family="sans-serif">' + budgetName + '</text><text x="50%" y="60%" text-anchor="middle" fill="#a3a3a3" font-size="18" font-family="sans-serif">Preview do modelo 3D</text></svg>'
+      const snapshot = `data:image/svg+xml,${encodeURIComponent(svg)}`
+      await saveBudget({
+        id: crypto.randomUUID(), name: budgetName.trim(), stlFileName: stlFile?.name ?? null, stlFileData: stlFile?.data ?? null, snapshotData: snapshot,
+        weight: input.weight, hours: input.hours, minutes: input.minutes, printValue: result.final,
+        finishes: [{ name: FINISHING_LABELS[input.finishing], value: result.finishingCost }, { name: "Embalagem", value: result.packagingCost }, { name: "Acessório", value: result.accessoryCost }].filter((item) => item.value > 0),
+        freightEnabled: calculationInput.freightEnabled, origin: calculationInput.freightOrigin || null, destination: calculationInput.freightDestination || null, distanceKm: calculationInput.freightDistanceKm, vehicle: calculationInput.vehicle, freightValue: result.freightCost, totalValue: result.final,
+      })
+      setBudgetSaved(true)
+      window.setTimeout(() => setBudgetSaved(false), 2500)
+    } finally { setSavingBudget(false) }
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -262,20 +301,32 @@ export function PricingCalculator() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-border bg-card px-5 py-5 text-card-foreground shadow-sm">
+          <div className="mb-4 flex items-center gap-2.5"><FileText className="size-4 text-primary" /><h2 className="text-base font-semibold">Salvar orçamento</h2></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nome do orçamento" htmlFor="budget-name"><input id="budget-name" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} placeholder="Ex.: Suporte de parede" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-3 focus:ring-ring/40" /></Field>
+            <Field label="Modelo STL" htmlFor="budget-stl"><input id="budget-stl" type="file" accept=".stl,model/stl" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setStlFile({ name: file.name, data: String(reader.result) }); reader.readAsDataURL(file) }} className="h-10 w-full cursor-pointer rounded-xl border border-input bg-background px-3 py-2 text-sm" /></Field>
+          </div>
+        </section>
+
         <AdvancedParamsSection
           params={params}
           onChange={setParams}
           onReset={() => setParams(DEFAULT_PARAMS)}
         />
-      </div>
+
+        </div>
 
       {/* Resumo (fixo em telas grandes) */}
       <div className="lg:sticky lg:top-6 lg:self-start">
         <div className="flex flex-col gap-4">
-          <SummaryPanel input={input} result={result} />
-          <Button size="lg" className="h-11 w-full text-sm" onClick={() => setQuoteOpen(true)}>
+          <SummaryPanel input={calculationInput} result={result} />
+          <Button size="lg" className="h-11 w-full text-sm" onClick={handleSaveBudget} disabled={!budgetName.trim() || savingBudget}>
             <FileText />
-            Gerar orçamento
+            {savingBudget ? "Salvando..." : budgetSaved ? "Orçamento salvo" : "Salvar orçamento"}
+          </Button>
+          <Button variant="outline" size="lg" className="h-11 w-full text-sm" onClick={() => setQuoteOpen(true)}>
+            Gerar orçamento em PDF
           </Button>
         </div>
       </div>
@@ -283,7 +334,7 @@ export function PricingCalculator() {
       <QuoteDialog
         open={quoteOpen}
         onClose={() => setQuoteOpen(false)}
-        input={input}
+        input={calculationInput}
         result={result}
       />
     </div>

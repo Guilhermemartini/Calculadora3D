@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Boxes, Calculator, Layers, Menu } from "lucide-react"
+import { Boxes, Calculator, CalendarDays, FileText, Layers, Link2, Menu } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ReactNode, useEffect, useState } from "react"
@@ -9,6 +9,9 @@ import { type ReactNode, useEffect, useState } from "react"
 const NAV = [
   { href: "/", label: "Calculadora", icon: Calculator },
   { href: "/estoque", label: "Estoque de Filamentos", icon: Layers },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/atalhos", label: "Atalhos", icon: Link2 },
+  { href: "/orcamentos", label: "Orçamentos", icon: FileText },
 ]
 
 function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

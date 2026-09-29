@@ -42,7 +42,12 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
   function goToday() { const next = new Date(); setWeek(next); reload(next) }
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (!form?.name.trim()) return
-    const payload = { ...form, name: form.name.trim(), notes: form.notes.trim() || null }
+    const payload = {
+      ...form,
+      id: form.id || crypto.randomUUID(),
+      name: form.name.trim(),
+      notes: form.notes.trim() || null,
+    }
     startTransition(async () => { await saveAgendaTask(payload); setForm(null); reload() })
   }
   function remove(id: string) { if (!window.confirm("Excluir esta tarefa?")) return; startTransition(async () => { await deleteAgendaTask(id); reload() }) }

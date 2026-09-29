@@ -3,6 +3,7 @@
 import {
   deleteAgendaTask,
   listAgendaTasks,
+  listAllAgendaTasks,
   saveAgendaTask,
   updateAgendaTaskStatus,
   type AgendaStatus,
@@ -30,17 +31,33 @@ const HOURS = Array.from({ length: 12 }, (_, index) => index + 8)
 export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: AgendaTask[]; initialWeek: string }) {
   const [week, setWeek] = useState(() => new Date(`${initialWeek}T12:00:00`))
   const [tasks, setTasks] = useState(initialTasks)
+  const [allTasks, setAllTasks] = useState(initialTasks)
   const [form, setForm] = useState<FormState | null>(null)
   const [view, setView] = useState<"agenda" | "listagem">("agenda")
+  const [selectedDate, setSelectedDate] = useState("")
   const [isPending, startTransition] = useTransition()
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(week), index)), [week])
 
   function reload(nextWeek = week) {
     const nextDays = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(nextWeek), index))
-    startTransition(async () => setTasks(await listAgendaTasks(dateKey(nextDays[0]), dateKey(nextDays[6]))))
+    startTransition(async () => {
+      const [weekTasks, completeTasks] = await Promise.all([
+        listAgendaTasks(dateKey(nextDays[0]), dateKey(nextDays[6])),
+        listAllAgendaTasks(),
+      ])
+      setTasks(weekTasks)
+      setAllTasks(completeTasks)
+    })
   }
   function shift(amount: number) { const next = addDays(week, amount * 7); setWeek(next); reload(next) }
-  function goToday() { const next = new Date(); setWeek(next); reload(next) }
+  function goToday() { const next = new Date(); setSelectedDate(dateKey(next)); setWeek(next); reload(next) }
+  function filterByDate(value: string) {
+    setSelectedDate(value)
+    if (!value) return
+    const next = new Date(`${value}T12:00:00`)
+    setWeek(next)
+    reload(next)
+  }
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (!form?.name.trim()) return
     const payload = {
@@ -52,9 +69,13 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
     startTransition(async () => { await saveAgendaTask(payload); setForm(null); reload() })
   }
   function remove(id: string) { if (!window.confirm("Excluir esta tarefa?")) return; startTransition(async () => { await deleteAgendaTask(id); reload() }) }
-  function status(id: string, value: AgendaStatus) { setTasks((current) => current.map((task) => task.id === id ? { ...task, status: value } : task)); startTransition(async () => await updateAgendaTaskStatus(id, value)) }
+  function status(id: string, value: AgendaStatus) {
+    setTasks((current) => current.map((task) => task.id === id ? { ...task, status: value } : task))
+    setAllTasks((current) => current.map((task) => task.id === id ? { ...task, status: value } : task))
+    startTransition(async () => await updateAgendaTaskStatus(id, value))
+  }
   function image(event: React.ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setForm((current) => current ? { ...current, imageData: String(reader.result) } : current); reader.readAsDataURL(file) }
-  const sortedTasks = useMemo(() => [...tasks].sort((a, b) => `${a.date.slice(0, 10)} ${a.time}`.localeCompare(`${b.date.slice(0, 10)} ${b.time}`)), [tasks])
+  const sortedTasks = useMemo(() => [...allTasks].sort((a, b) => `${a.date.slice(0, 10)} ${a.time}`.localeCompare(`${b.date.slice(0, 10)} ${b.time}`)), [allTasks])
 
   return <main className="min-h-svh bg-background px-4 py-6 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-[1500px]">
@@ -69,6 +90,13 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
       {view === "agenda" ? <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3">
         <div className="flex items-center gap-2"><Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Semana anterior"><ChevronLeft /></Button><Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próxima semana"><ChevronRight /></Button><Button variant="outline" onClick={goToday}><CalendarDays /> Hoje</Button></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>Filtrar por data</span>
+            <input type="date" value={selectedDate} onChange={(event) => filterByDate(event.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm font-normal text-foreground outline-none focus:ring-2 focus:ring-ring/40" aria-label="Filtrar agenda por data" />
+          </label>
+          {selectedDate ? <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedDate("")}>Limpar</Button> : null}
+        </div>
         <p className="text-sm font-medium">{formatDay(days[0])} — {formatDay(days[6])}</p><span className="text-xs text-muted-foreground">{isPending ? "Salvando..." : "Sincronizado"}</span>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">

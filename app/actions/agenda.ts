@@ -40,6 +40,14 @@ export async function listAgendaTasks(startDate: string, endDate: string) {
   return result.rows.map((row) => map(row as Record<string, unknown>))
 }
 
+export async function listAllAgendaTasks() {
+  const result = await db.execute(sql`
+    SELECT * FROM agenda_tasks
+    ORDER BY task_date ASC, task_time ASC, created_at ASC
+  `)
+  return result.rows.map((row) => map(row as Record<string, unknown>))
+}
+
 export async function saveAgendaTask(input: {
   id: string
   date: string

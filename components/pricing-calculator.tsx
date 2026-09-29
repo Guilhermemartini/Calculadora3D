@@ -3,6 +3,7 @@
 import { getCalculatorSettings, saveCalculatorSettings } from "@/app/actions/settings"
 import { saveBudget } from "@/app/actions/budgets"
 import { AdvancedParamsSection } from "@/components/advanced-params"
+import { FreightCalculator } from "@/components/freight-calculator"
 import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
 import { QuoteDialog } from "@/components/quote-dialog"
 import { SummaryPanel } from "@/components/summary-panel"
@@ -314,6 +315,8 @@ export function PricingCalculator() {
           onChange={setParams}
           onReset={() => setParams(DEFAULT_PARAMS)}
         />
+
+        <FreightCalculator />
       </div>
 
       {/* Resumo (fixo em telas grandes) */}

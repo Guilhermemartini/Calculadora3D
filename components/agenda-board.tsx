@@ -26,7 +26,7 @@ function startOfWeek(date: Date) { const d = new Date(date); const day = d.getDa
 function addDays(date: Date, amount: number) { const d = new Date(date); d.setDate(d.getDate() + amount); return d }
 function formatDay(date: Date) { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" }).format(date).replace(/^./, (c) => c.toUpperCase()) }
 function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, time: "09:00", status: "a_fazer", notes: "" } }
-const HOURS = Array.from({ length: 12 }, (_, index) => index + 8)
+const HOURS = Array.from({ length: 24 }, (_, index) => index)
 
 export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: AgendaTask[]; initialWeek: string }) {
   const [week, setWeek] = useState(() => new Date(`${initialWeek}T12:00:00`))
@@ -76,6 +76,10 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
   }
   function image(event: React.ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setForm((current) => current ? { ...current, imageData: String(reader.result) } : current); reader.readAsDataURL(file) }
   const sortedTasks = useMemo(() => [...allTasks].sort((a, b) => `${a.date.slice(0, 10)} ${a.time}`.localeCompare(`${b.date.slice(0, 10)} ${b.time}`)), [allTasks])
+  const rowHeight = (hour: number) => {
+    const maximum = Math.max(0, ...days.map((day) => tasks.filter((task) => task.date.slice(0, 10) === dateKey(day) && Number(task.time.slice(0, 2)) === hour).length))
+    return `${Math.max(6, 6 + (maximum - 1) * 5)}rem`
+  }
 
   return <main className="min-h-svh bg-background px-4 py-6 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-[1500px]">
@@ -115,12 +119,12 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
             })}
           </div>
           <div className="grid grid-cols-[72px_repeat(7,minmax(126px,1fr))]">
-            <div className="border-r border-border">{HOURS.map((hour) => <div key={hour} className="flex h-24 items-start justify-end border-b border-border px-2 pt-2 text-[11px] text-muted-foreground">{String(hour).padStart(2, "0")}:00</div>)}</div>
+            <div className="border-r border-border">{HOURS.map((hour) => <div key={hour} style={{ height: rowHeight(hour) }} className="flex items-start justify-end border-b border-border px-2 pt-2 text-[11px] text-muted-foreground">{String(hour).padStart(2, "0")}:00</div>)}</div>
             {days.map((day) => {
               const key = dateKey(day)
               return <div key={key} className="border-r border-border last:border-r-0">{HOURS.map((hour) => {
                 const hourTasks = tasks.filter((task) => task.date.slice(0, 10) === key && Number(task.time.slice(0, 2)) === hour)
-                return <div key={hour} className="group relative h-24 border-b border-border p-1.5 hover:bg-muted/30">
+                return <div key={hour} style={{ height: rowHeight(hour) }} className="group relative border-b border-border p-1.5 hover:bg-muted/30">
                   <button type="button" onClick={() => setForm(emptyForm(`${key}`))} className="absolute right-1 top-1 hidden rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary group-hover:block" aria-label={`Adicionar agendamento em ${key} às ${hour}:00`}><Plus className="size-3.5" /></button>
                   <div className="flex flex-col gap-1">{hourTasks.map((task) => <article key={task.id} className="rounded-lg border border-primary/30 bg-primary/10 p-2 shadow-sm"><div className="flex items-start gap-1.5"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-foreground">{task.name}</p><p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock3 className="size-3" />{task.time}</p></div><button type="button" className="rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={() => setForm({ ...task, notes: task.notes ?? "" })} aria-label="Editar tarefa"><Pencil className="size-3" /></button></div><div className="mt-1.5 flex items-center gap-1"><select aria-label={`Status de ${task.name}`} value={task.status} onChange={(event) => status(task.id, event.target.value as AgendaStatus)} className="h-6 min-w-0 flex-1 rounded border border-border bg-card px-1 text-[10px] outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => remove(task.id)} aria-label="Excluir tarefa"><Trash2 className="size-3" /></button></div></article>)}</div>
                 </div>

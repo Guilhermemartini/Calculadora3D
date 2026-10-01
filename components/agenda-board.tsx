@@ -26,7 +26,7 @@ function startOfWeek(date: Date) { const d = new Date(date); const day = d.getDa
 function addDays(date: Date, amount: number) { const d = new Date(date); d.setDate(d.getDate() + amount); return d }
 function formatDay(date: Date) { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" }).format(date).replace(/^./, (c) => c.toUpperCase()) }
 function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, time: "09:00", status: "a_fazer", notes: "" } }
-const HOURS = Array.from({ length: 12 }, (_, index) => index + 8)
+const HOURS = Array.from({ length: 24 }, (_, index) => index)
 
 export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: AgendaTask[]; initialWeek: string }) {
   const [week, setWeek] = useState(() => new Date(`${initialWeek}T12:00:00`))

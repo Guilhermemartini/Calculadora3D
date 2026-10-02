@@ -19,13 +19,13 @@ const STATUS: Array<{ value: AgendaStatus; label: string }> = [
   { value: "concluido", label: "Concluído" },
 ]
 
-type FormState = { id: string; date: string; name: string; imageData: string | null; time: string; status: AgendaStatus; notes: string }
+type FormState = { id: string; date: string; name: string; imageData: string | null; imageFile: File | null; time: string; status: AgendaStatus; notes: string }
 
 function dateKey(date: Date) { return date.toISOString().slice(0, 10) }
 function startOfWeek(date: Date) { const d = new Date(date); const day = d.getDay(); d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); d.setHours(12); return d }
 function addDays(date: Date, amount: number) { const d = new Date(date); d.setDate(d.getDate() + amount); return d }
 function formatDay(date: Date) { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" }).format(date).replace(/^./, (c) => c.toUpperCase()) }
-function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, time: "09:00", status: "a_fazer", notes: "" } }
+function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, imageFile: null, time: "09:00", status: "a_fazer", notes: "" } }
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
 
 export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: AgendaTask[]; initialWeek: string }) {
@@ -35,6 +35,8 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
   const [form, setForm] = useState<FormState | null>(null)
   const [view, setView] = useState<"agenda" | "listagem">("agenda")
   const [selectedDate, setSelectedDate] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [uploadError, setUploadError] = useState("")
   const [isPending, startTransition] = useTransition()
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(week), index)), [week])
 
@@ -58,15 +60,33 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
     setWeek(next)
     reload(next)
   }
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault(); if (!form?.name.trim()) return
-    const payload = {
-      ...form,
-      id: form.id || crypto.randomUUID(),
-      name: form.name.trim(),
-      notes: form.notes.trim() || null,
-    }
-    startTransition(async () => { await saveAgendaTask(payload); setForm(null); reload() })
+    setIsSaving(true)
+    setUploadError("")
+    try {
+      let imageData = form.imageData
+      if (form.imageFile) {
+        const body = new FormData()
+        body.append("file", form.imageFile)
+        const response = await fetch("/api/agenda/upload", { method: "POST", body })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || "Não foi possível enviar a imagem.")
+        imageData = result.url
+      }
+      const payload = {
+        id: form.id || crypto.randomUUID(),
+        date: form.date,
+        name: form.name.trim(),
+        imageData,
+        time: form.time,
+        status: form.status,
+        notes: form.notes.trim() || null,
+      }
+      startTransition(async () => { await saveAgendaTask(payload); setForm(null); reload() })
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Não foi possível salvar a tarefa.")
+    } finally { setIsSaving(false) }
   }
   function remove(id: string) { if (!window.confirm("Excluir esta tarefa?")) return; startTransition(async () => { await deleteAgendaTask(id); reload() }) }
   function status(id: string, value: AgendaStatus) {
@@ -74,7 +94,7 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
     setAllTasks((current) => current.map((task) => task.id === id ? { ...task, status: value } : task))
     startTransition(async () => await updateAgendaTaskStatus(id, value))
   }
-  function image(event: React.ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setForm((current) => current ? { ...current, imageData: String(reader.result) } : current); reader.readAsDataURL(file) }
+  function image(event: React.ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) { setUploadError("Escolha uma imagem de até 5 MB."); return } setUploadError(""); setForm((current) => current ? { ...current, imageFile: file, imageData: URL.createObjectURL(file) } : current) }
   const sortedTasks = useMemo(() => [...allTasks].sort((a, b) => `${a.date.slice(0, 10)} ${a.time}`.localeCompare(`${b.date.slice(0, 10)} ${b.time}`)), [allTasks])
   const rowHeight = (hour: number) => {
     const maximum = Math.max(0, ...days.map((day) => tasks.filter((task) => task.date.slice(0, 10) === dateKey(day) && Number(task.time.slice(0, 2)) === hour).length))
@@ -126,7 +146,7 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
                 const hourTasks = tasks.filter((task) => task.date.slice(0, 10) === key && Number(task.time.slice(0, 2)) === hour)
                 return <div key={hour} style={{ height: rowHeight(hour) }} className="group relative border-b border-border p-1.5 hover:bg-muted/30">
                   <button type="button" onClick={() => setForm(emptyForm(`${key}`))} className="absolute right-1 top-1 hidden rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary group-hover:block" aria-label={`Adicionar agendamento em ${key} às ${hour}:00`}><Plus className="size-3.5" /></button>
-                  <div className="flex flex-col gap-1">{hourTasks.map((task) => <article key={task.id} className="rounded-lg border border-primary/30 bg-primary/10 p-2 shadow-sm"><div className="flex items-start gap-1.5"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-foreground">{task.name}</p><p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock3 className="size-3" />{task.time}</p></div><button type="button" className="rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={() => setForm({ ...task, notes: task.notes ?? "" })} aria-label="Editar tarefa"><Pencil className="size-3" /></button></div><div className="mt-1.5 flex items-center gap-1"><select aria-label={`Status de ${task.name}`} value={task.status} onChange={(event) => status(task.id, event.target.value as AgendaStatus)} className="h-6 min-w-0 flex-1 rounded border border-border bg-card px-1 text-[10px] outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => remove(task.id)} aria-label="Excluir tarefa"><Trash2 className="size-3" /></button></div></article>)}</div>
+                  <div className="flex flex-col gap-1">{hourTasks.map((task) => <article key={task.id} className="rounded-lg border border-primary/30 bg-primary/10 p-2 shadow-sm"><div className="flex items-start gap-1.5"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-foreground">{task.name}</p><p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock3 className="size-3" />{task.time}</p></div><button type="button" className="rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={() => setForm({ ...task, imageFile: null, notes: task.notes ?? "" })} aria-label="Editar tarefa"><Pencil className="size-3" /></button></div><div className="mt-1.5 flex items-center gap-1"><select aria-label={`Status de ${task.name}`} value={task.status} onChange={(event) => status(task.id, event.target.value as AgendaStatus)} className="h-6 min-w-0 flex-1 rounded border border-border bg-card px-1 text-[10px] outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => remove(task.id)} aria-label="Excluir tarefa"><Trash2 className="size-3" /></button></div></article>)}</div>
                 </div>
               })}</div>
             })}
@@ -135,7 +155,7 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
       </div>
       </> : <section className="rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Serviços agendados</h2><p className="text-sm text-muted-foreground">Ordenados dos mais próximos aos mais longos.</p></div><span className="text-sm text-muted-foreground">{sortedTasks.length} {sortedTasks.length === 1 ? "serviço" : "serviços"}</span></div>
-        {sortedTasks.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">Nenhum serviço agendado.</div> : <div className="divide-y divide-border">{sortedTasks.map((task) => <article key={task.id} className="flex flex-wrap items-center gap-4 px-5 py-4"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Clock3 className="size-5" /></div><div className="min-w-0"><p className="truncate font-medium">{task.name}</p><p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "full" }).format(new Date(`${task.date.slice(0, 10)}T12:00:00`))} às {task.time}</p>{task.notes ? <p className="mt-1 truncate text-xs text-muted-foreground">{task.notes}</p> : null}</div></div><select aria-label={`Status de ${task.name}`} value={task.status} onChange={(event) => status(task.id, event.target.value as AgendaStatus)} className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><Button type="button" variant="ghost" size="icon" onClick={() => setForm({ ...task, notes: task.notes ?? "" })} aria-label="Editar tarefa"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" onClick={() => remove(task.id)} aria-label="Excluir tarefa"><Trash2 className="size-4" /></Button></article>)}</div>}
+        {sortedTasks.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">Nenhum serviço agendado.</div> : <div className="divide-y divide-border">{sortedTasks.map((task) => <article key={task.id} className="flex flex-wrap items-center gap-4 px-5 py-4"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Clock3 className="size-5" /></div><div className="min-w-0"><p className="truncate font-medium">{task.name}</p><p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "full" }).format(new Date(`${task.date.slice(0, 10)}T12:00:00`))} às {task.time}</p>{task.notes ? <p className="mt-1 truncate text-xs text-muted-foreground">{task.notes}</p> : null}</div></div><select aria-label={`Status de ${task.name}`} value={task.status} onChange={(event) => status(task.id, event.target.value as AgendaStatus)} className="h-8 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><Button type="button" variant="ghost" size="icon" onClick={() => setForm({ ...task, imageFile: null, notes: task.notes ?? "" })} aria-label="Editar tarefa"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" onClick={() => remove(task.id)} aria-label="Excluir tarefa"><Trash2 className="size-4" /></Button></article>)}</div>}
       </section>}
     </div>
     {form ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><form onSubmit={submit} className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">{form.id ? "Editar tarefa" : "Nova tarefa"}</h2><p className="text-xs text-muted-foreground">Preencha os dados da produção.</p></div><button type="button" onClick={() => setForm(null)} aria-label="Fechar"><X className="size-5" /></button></div><div className="grid gap-4 p-5 sm:grid-cols-2"><label className="space-y-1.5 sm:col-span-2"><span className="text-sm font-medium">Nome do item</span><input autoFocus required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" placeholder="Ex.: Suporte de parede" /></label><label className="space-y-1.5"><span className="text-sm font-medium">Dia</span><input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" /></label><label className="space-y-1.5"><span className="text-sm font-medium">Horário</span><input type="time" required value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" /></label><label className="space-y-1.5"><span className="text-sm font-medium">Status</span><select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as AgendaStatus })} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40">{STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="space-y-1.5"><span className="text-sm font-medium">Imagem <span className="font-normal text-muted-foreground">(opcional)</span></span><span className="flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground"><ImagePlus className="size-4" /><input type="file" accept="image/*" onChange={image} className="min-w-0 text-xs" /></span></label><label className="space-y-1.5 sm:col-span-2"><span className="text-sm font-medium">Observação <span className="font-normal text-muted-foreground">(opcional)</span></span><textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40" placeholder="Detalhes da produção..." /></label></div><div className="flex justify-end gap-2 border-t border-border px-5 py-4"><Button type="button" variant="outline" onClick={() => setForm(null)}>Cancelar</Button><Button type="submit" disabled={isPending}>Salvar</Button></div></form></div> : null}

@@ -63,13 +63,13 @@ export function AdvancedParamsSection({
             <Field label="Quantidade de embalagens">
               <NumberInput value={params.packagingQuantity} onChange={(v) => set({ packagingQuantity: v })} suffix="un." min={0} />
             </Field>
-            <Field label="Valor total das embalagens">
+            <Field label="Valor da embalagem">
               <NumberInput value={params.packagingTotalCost} onChange={(v) => set({ packagingTotalCost: v })} prefix="R$" min={0} />
             </Field>
             <Field label="Quantidade de acessórios">
               <NumberInput value={params.accessoryQuantity} onChange={(v) => set({ accessoryQuantity: v })} suffix="un." min={0} />
             </Field>
-            <Field label="Valor total dos acessórios">
+            <Field label="Valor dos acessórios">
               <NumberInput value={params.accessoryTotalCost} onChange={(v) => set({ accessoryTotalCost: v })} prefix="R$" min={0} />
             </Field>
           </div>

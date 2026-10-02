@@ -160,11 +160,12 @@ export function calculate(input: CalculatorInput, params: AdvancedParams): Calcu
   const accessoryCost = ["accessory", "both"].includes(input.additionalCosts)
     ? accessoryCostPerPiece * qty
     : 0
-  // 6. Subtotal
-  const subtotal = filamentCost + printerCost + finishingCost + packagingCost + accessoryCost + freightCost
-  // 7. Margem de lucro
-  const profit = subtotal * ((params.profitMargin || 0) / 100)
-  const afterProfit = subtotal + profit
+  // 6. Subtotal dos custos-base. O acabamento é um acréscimo direto informado pelo usuário.
+  const baseSubtotal = filamentCost + printerCost + packagingCost + accessoryCost + freightCost
+  const subtotal = baseSubtotal + finishingCost
+  // 7. Margem de lucro aplicada somente aos custos-base.
+  const profit = baseSubtotal * ((params.profitMargin || 0) / 100)
+  const afterProfit = baseSubtotal + profit + finishingCost
   // 8. Urgência
   const urgencyPercent = params.urgency[input.urgency] || 0
   const urgencyAmount = afterProfit * (urgencyPercent / 100)

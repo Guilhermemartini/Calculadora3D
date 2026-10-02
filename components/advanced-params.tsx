@@ -63,22 +63,22 @@ export function AdvancedParamsSection({
             <Field label="Quantidade de embalagens">
               <NumberInput value={params.packagingQuantity} onChange={(v) => set({ packagingQuantity: v })} suffix="un." min={0} />
             </Field>
-            <Field label="Valor por embalagem">
+            <Field label="Valor da embalagem">
               <NumberInput value={params.packagingTotalCost} onChange={(v) => set({ packagingTotalCost: v })} prefix="R$" min={0} />
             </Field>
             <Field label="Quantidade de acessórios">
               <NumberInput value={params.accessoryQuantity} onChange={(v) => set({ accessoryQuantity: v })} suffix="un." min={0} />
             </Field>
-            <Field label="Valor por acessório">
+            <Field label="Valor dos acessórios">
               <NumberInput value={params.accessoryTotalCost} onChange={(v) => set({ accessoryTotalCost: v })} prefix="R$" min={0} />
             </Field>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-              Custo por embalagem: <strong className="text-foreground">R$ {params.packagingTotalCost.toFixed(2).replace(".", ",")}</strong>
+              Custo por embalagem: <strong className="text-foreground">R$ {(params.packagingQuantity > 0 ? params.packagingTotalCost / params.packagingQuantity : 0).toFixed(2).replace(".", ",")}</strong>
             </div>
             <div className="rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-              Custo por acessório: <strong className="text-foreground">R$ {params.accessoryTotalCost.toFixed(2).replace(".", ",")}</strong>
+              Custo por acessório: <strong className="text-foreground">R$ {(params.accessoryQuantity > 0 ? params.accessoryTotalCost / params.accessoryQuantity : 0).toFixed(2).replace(".", ",")}</strong>
             </div>
           </div>
 

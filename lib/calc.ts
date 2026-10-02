@@ -100,8 +100,8 @@ function finishingPerPiece(finishing: Finishing, params: AdvancedParams): number
   }
 }
 
-function unitCost(quantity: number, totalCost: number): number {
-  return quantity > 0 ? Math.max(0, totalCost) / quantity : 0
+function unitCost(_quantity: number, costPerUnit: number): number {
+  return Math.max(0, costPerUnit)
 }
 
 function roundFinalValue(value: number, enabled: boolean): number {

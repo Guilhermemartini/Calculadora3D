@@ -79,8 +79,7 @@ export async function listCommemorativeDates(filters?: { month?: number; priorit
   await processPendingBlobCleanup()
   const clauses = []
   if (filters?.month && filters.month >= 1 && filters.month <= 12) {
-    const monthStart = `2027-${String(filters.month).padStart(2, '0')}-01`
-    clauses.push(sql`d.date_start <= (date_trunc('month', ${monthStart}::date) + interval '1 month - 1 day')::date AND d.date_end >= ${monthStart}::date`)
+    clauses.push(sql`EXISTS (SELECT 1 FROM generate_series(date_trunc('month', d.date_start), date_trunc('month', d.date_end), interval '1 month') AS event_month WHERE EXTRACT(MONTH FROM event_month) = ${filters.month})`)
   }
   if (filters?.priorityOnly) clauses.push(sql`d.high_priority = true`)
   if (filters?.search?.trim()) {
@@ -115,11 +114,11 @@ function validateDateInput(input: { name: string; dateStart: string; dateEnd?: s
   const name = input.name.trim()
   const dateEnd = input.dateEnd || input.dateStart
   const isValidDate = (value: string) => {
-    if (!/^2027-\d{2}-\d{2}$/.test(value)) return false
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
     const parsed = new Date(`${value}T00:00:00Z`)
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
   }
-  if (!name || !isValidDate(input.dateStart) || !isValidDate(dateEnd)) throw new Error('Informe o nome e datas válidas de 2027.')
+  if (!name || !isValidDate(input.dateStart) || !isValidDate(dateEnd)) throw new Error('Informe o nome e datas válidas.')
   if (dateEnd < input.dateStart) throw new Error('A data final não pode ser anterior à data inicial.')
   return { name, dateEnd }
 }

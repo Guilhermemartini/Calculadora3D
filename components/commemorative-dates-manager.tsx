@@ -44,7 +44,6 @@ const fileSize = (size: number) => size < 1_000_000 ? `${(size / 1_000).toFixed(
 export function CommemorativeDatesManager({ initialDates }: { initialDates: CommemorativeDate[] }) {
   const [dates, setDates] = useState(initialDates)
   const [today, setToday] = useState(todayInSaoPaulo)
-  const [activeSummaryMonth, setActiveSummaryMonth] = useState<0 | 1>(0)
   const [month, setMonth] = useState("all")
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [search, setSearch] = useState("")
@@ -68,21 +67,6 @@ export function CommemorativeDatesManager({ initialDates }: { initialDates: Comm
       window.removeEventListener("focus", updateToday)
     }
   }, [])
-
-  const summaryMonths = useMemo(() => {
-    const [year, monthNumber] = today.split("-").map(Number)
-    return [0, 1].map((offset) => {
-      const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1))
-      return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, label: new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date).replace(/^./, (character) => character.toLocaleUpperCase("pt-BR")) }
-    })
-  }, [today])
-  const summaryDates = useMemo(() => {
-    const target = summaryMonths[activeSummaryMonth]
-    const monthStart = `${target.year}-${String(target.month).padStart(2, "0")}-01`
-    const lastDay = new Date(Date.UTC(target.year, target.month, 0)).getUTCDate()
-    const monthEnd = `${target.year}-${String(target.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
-    return dates.filter((date) => date.dateStart <= monthEnd && date.dateEnd >= monthStart).sort((a, b) => a.dateStart.localeCompare(b.dateStart) || a.name.localeCompare(b.name, "pt-BR"))
-  }, [dates, summaryMonths, activeSummaryMonth])
 
   const filtered = useMemo(() => dates.filter((date) => {
     const monthMatch = month === "all" || (() => {
@@ -191,24 +175,6 @@ export function CommemorativeDatesManager({ initialDates }: { initialDates: Comm
       <div><p className="text-sm font-medium text-primary">Planejamento comercial</p><h2 className="text-2xl font-semibold tracking-tight">Datas comemorativas</h2><p className="mt-1 text-sm text-muted-foreground">Organize suas datas comerciais e os arquivos STL de cada coleção.</p></div>
       <Button onClick={() => { setError(""); setDateForm({ name: "", dateStart: today, dateEnd: today, highPriority: false }) }}><Plus /> Adicionar data</Button>
     </header>
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5" aria-label="Próximas datas comemorativas">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h3 className="font-semibold">Calendário comercial</h3><p className="text-sm text-muted-foreground">Visão das comemorações cadastradas, sem depender dos filtros da listagem.</p></div>
-        <div className="grid grid-cols-2 rounded-xl border border-border bg-background p-1" role="tablist" aria-label="Mês do calendário comercial">
-          {summaryMonths.map((item, index) => <button key={`${item.year}-${item.month}`} type="button" role="tab" aria-selected={activeSummaryMonth === index} onClick={() => setActiveSummaryMonth(index as 0 | 1)} className={`rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors sm:text-sm ${activeSummaryMonth === index ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
-            <span className="block">{index === 0 ? "Este mês" : "Próximo mês"}</span><span className="mt-0.5 block opacity-80">{item.label}</span>
-          </button>)}
-        </div>
-      </div>
-      {summaryDates.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{summaryDates.map((date) => <button key={date.id} type="button" onClick={() => {
-        setSearch(""); setPriorityOnly(false); setMonth("all"); setExpanded(date.id)
-        window.setTimeout(() => document.getElementById(`commemorative-date-${date.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50)
-      }} className="group flex min-w-0 flex-col rounded-xl border border-border bg-background/60 p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="flex min-w-0 items-start justify-between gap-2"><span className="truncate font-semibold">{date.name}</span>{date.highPriority ? <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">Prioritária</span> : null}</span>
-        <span className="mt-1 text-sm text-muted-foreground">{dateLabel(date.dateStart, date.dateEnd)}</span>
-        <span className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{date.models.length} {date.models.length === 1 ? "arquivo STL" : "arquivos STL"}</span><span className={`rounded-full px-2 py-1 font-medium ${getDateStatus(date, today) === "Já passou" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>{getDateStatus(date, today)}</span></span>
-      </button>)}</div> : <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma data cadastrada para este mês.</p>}
-    </section>
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-center">
       <label className="relative min-w-0 flex-1 sm:min-w-60"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar comemoração ou modelo" className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" aria-label="Buscar por comemoração ou modelo" /></label>
       <label className="flex items-center gap-2 text-sm text-muted-foreground"><span>Mês</span><select value={month} onChange={(event) => setMonth(event.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="all">Todos os meses</option>{MONTHS.map((item, index) => <option key={item} value={String(index + 1)}>{item}</option>)}</select></label>

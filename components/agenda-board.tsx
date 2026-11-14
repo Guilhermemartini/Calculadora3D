@@ -1,5 +1,6 @@
 "use client"
 
+import type { CommemorativeDate } from "@/app/actions/commemorative-dates"
 import {
   deleteAgendaTask,
   listAgendaTasks,
@@ -10,7 +11,8 @@ import {
   type AgendaTask,
 } from "@/app/actions/agenda"
 import { Button } from "@/components/ui/button"
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, ImagePlus, List, Pencil, Plus, Trash2, X } from "lucide-react"
+import { CommemorativeDatesManager } from "@/components/commemorative-dates-manager"
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, ImagePlus, List, Pencil, Plus, Trash2, X, Gift } from "lucide-react"
 import { useMemo, useState, useTransition } from "react"
 
 const STATUS: Array<{ value: AgendaStatus; label: string }> = [
@@ -28,12 +30,12 @@ function formatDay(date: Date) { return new Intl.DateTimeFormat("pt-BR", { weekd
 function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, imageFile: null, time: "09:00", status: "a_fazer", notes: "" } }
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
 
-export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: AgendaTask[]; initialWeek: string }) {
+export function AgendaBoard({ initialTasks, initialWeek, initialCommemorativeDates }: { initialTasks: AgendaTask[]; initialWeek: string; initialCommemorativeDates: CommemorativeDate[] }) {
   const [week, setWeek] = useState(() => new Date(`${initialWeek}T12:00:00`))
   const [tasks, setTasks] = useState(initialTasks)
   const [allTasks, setAllTasks] = useState(initialTasks)
   const [form, setForm] = useState<FormState | null>(null)
-  const [view, setView] = useState<"agenda" | "listagem">("agenda")
+  const [view, setView] = useState<"agenda" | "listagem" | "datas">("agenda")
   const [selectedDate, setSelectedDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [uploadError, setUploadError] = useState("")
@@ -107,11 +109,12 @@ export function AgendaBoard({ initialTasks, initialWeek }: { initialTasks: Agend
         <div><p className="text-sm font-medium text-primary">Produção</p><h1 className="text-2xl font-semibold tracking-tight">Agenda</h1><p className="mt-1 text-sm text-muted-foreground">Organize suas tarefas de produção por dia.</p></div>
         <Button onClick={() => setForm(emptyForm(dateKey(new Date())))}><Plus /> Nova tarefa</Button>
       </header>
-      <div className="mb-5 inline-flex rounded-xl border border-border bg-card p-1 shadow-sm" role="tablist" aria-label="Visualização da agenda">
+      <div className="mb-5 flex w-full flex-wrap rounded-xl border border-border bg-card p-1 shadow-sm sm:inline-flex sm:w-auto" role="tablist" aria-label="Visualização da agenda">
         <button type="button" role="tab" aria-selected={view === "agenda"} onClick={() => setView("agenda")} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === "agenda" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><CalendarDays className="size-4" /> Agenda</button>
         <button type="button" role="tab" aria-selected={view === "listagem"} onClick={() => setView("listagem")} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === "listagem" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><List className="size-4" /> Listagem</button>
+        <button type="button" role="tab" aria-selected={view === "datas"} onClick={() => setView("datas")} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === "datas" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><Gift className="size-4" /> Datas comemorativas</button>
       </div>
-      {view === "agenda" ? <>
+      {view === "datas" ? <CommemorativeDatesManager initialDates={initialCommemorativeDates} /> : view === "agenda" ? <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3">
         <div className="flex items-center gap-2"><Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Semana anterior"><ChevronLeft /></Button><Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próxima semana"><ChevronRight /></Button><Button variant="outline" onClick={goToday}><CalendarDays /> Hoje</Button></div>
         <div className="flex flex-wrap items-center gap-2">

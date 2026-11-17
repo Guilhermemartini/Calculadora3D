@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireLegacyDataAccess } from "@/lib/authz"
 import { sql } from "drizzle-orm"
 
 export type FilamentRow = {
@@ -26,6 +27,7 @@ function mapFilament(row: Record<string, unknown>, usage: FilamentRow["usage"]):
 }
 
 export async function listFilaments(): Promise<FilamentRow[]> {
+  await requireLegacyDataAccess("filaments")
   const rows = await db.execute(sql`
     SELECT f.*, COALESCE(
       json_agg(json_build_object('id', u.id, 'amount', u.amount, 'date', u.used_at) ORDER BY u.used_at DESC)
@@ -40,6 +42,7 @@ export async function listFilaments(): Promise<FilamentRow[]> {
 }
 
 export async function createFilament(input: Omit<FilamentRow, "usage">) {
+  await requireLegacyDataAccess("filaments")
   await db.execute(sql`
     INSERT INTO filaments (id, color, material, total_weight, current_weight, roll_price)
     VALUES (${input.id}, ${input.color}, ${input.material}, ${input.totalWeight}, ${input.currentWeight}, ${input.rollPrice})
@@ -47,6 +50,7 @@ export async function createFilament(input: Omit<FilamentRow, "usage">) {
 }
 
 export async function updateFilament(input: Omit<FilamentRow, "usage">) {
+  await requireLegacyDataAccess("filaments")
   await db.execute(sql`
     UPDATE filaments SET color = ${input.color}, material = ${input.material}, total_weight = ${input.totalWeight}, current_weight = ${input.currentWeight}, roll_price = ${input.rollPrice}, updated_at = now()
     WHERE id = ${input.id}
@@ -54,11 +58,13 @@ export async function updateFilament(input: Omit<FilamentRow, "usage">) {
 }
 
 export async function deleteFilament(id: string) {
+  await requireLegacyDataAccess("filaments")
   await db.execute(sql`DELETE FROM filament_usage WHERE filament_id = ${id}`)
   await db.execute(sql`DELETE FROM filaments WHERE id = ${id}`)
 }
 
 export async function useFilament(filamentId: string, usageId: string, amount: number) {
+  await requireLegacyDataAccess("filaments")
   await db.execute(sql`
     INSERT INTO filament_usage (id, filament_id, amount) VALUES (${usageId}, ${filamentId}, ${amount})
   `)
@@ -68,6 +74,7 @@ export async function useFilament(filamentId: string, usageId: string, amount: n
 }
 
 export async function removeFilamentUsage(filamentId: string, usageId: string) {
+  await requireLegacyDataAccess("filaments")
   await db.execute(sql`
     UPDATE filaments f SET current_weight = LEAST(f.total_weight, f.current_weight + u.amount), updated_at = now()
     FROM filament_usage u WHERE f.id = ${filamentId} AND u.id = ${usageId} AND u.filament_id = f.id

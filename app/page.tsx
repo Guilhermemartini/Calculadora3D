@@ -1,8 +1,10 @@
 import { AppShell } from "@/components/app-shell"
 import { PricingCalculator } from "@/components/pricing-calculator"
 import { Boxes } from "lucide-react"
+import { requireLegacyPageAccess } from "@/lib/authz"
 
-export default function Page() {
+export default async function Page() {
+  await requireLegacyPageAccess("calculator")
   return (
     <AppShell>
       <main className="min-h-svh">

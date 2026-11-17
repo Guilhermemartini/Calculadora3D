@@ -1,6 +1,6 @@
 "use client"
 
-import { getCalculatorSettings, saveCalculatorSettings } from "@/app/actions/settings"
+import { getCalculatorSettings, saveCalculatorSettings, type CalculatorSettings } from "@/app/actions/settings"
 import { saveBudget } from "@/app/actions/budgets"
 import { AdvancedParamsSection } from "@/components/advanced-params"
 import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
@@ -20,7 +20,7 @@ import {
   calculate,
 } from "@/lib/calc"
 import { Box, Clock, FileText, Package } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 const DEFAULT_INPUT: CalculatorInput = {
   filamentOnly: false,
@@ -42,61 +42,108 @@ const DEFAULT_INPUT: CalculatorInput = {
   vehicle: "car",
 }
 
+function settingsFromParams(params: AdvancedParams): CalculatorSettings {
+  return {
+    hourlyRate: params.hourlyRate,
+    profitMargin: params.profitMargin,
+    sandingCost: params.sandingCost,
+    paintingCost: params.paintingCost,
+    urgencyNormal: params.urgency.normal,
+    urgencyUrgent: params.urgency.urgent,
+    urgencyVeryUrgent: params.urgency.veryUrgent,
+    packagingQuantity: params.packagingQuantity,
+    packagingTotalCost: params.packagingTotalCost,
+    accessoryQuantity: params.accessoryQuantity,
+    accessoryTotalCost: params.accessoryTotalCost,
+    roundFinalValue: params.roundFinalValue,
+  }
+}
+
+function paramsFromSettings(settings: CalculatorSettings): AdvancedParams {
+  return {
+    ...DEFAULT_PARAMS,
+    hourlyRate: settings.hourlyRate,
+    profitMargin: settings.profitMargin,
+    sandingCost: settings.sandingCost,
+    paintingCost: settings.paintingCost,
+    packagingQuantity: settings.packagingQuantity,
+    packagingTotalCost: settings.packagingTotalCost,
+    accessoryQuantity: settings.accessoryQuantity,
+    accessoryTotalCost: settings.accessoryTotalCost,
+    roundFinalValue: settings.roundFinalValue,
+    urgency: {
+      normal: settings.urgencyNormal,
+      urgent: settings.urgencyUrgent,
+      veryUrgent: settings.urgencyVeryUrgent,
+    },
+  }
+}
+
+function sameSettings(left: CalculatorSettings | null, right: CalculatorSettings) {
+  return left !== null && JSON.stringify(left) === JSON.stringify(right)
+}
+
 export function PricingCalculator() {
   const [input, setInput] = useState<CalculatorInput>(DEFAULT_INPUT)
   const [params, setParams] = useState<AdvancedParams>(DEFAULT_PARAMS)
-  const [loaded, setLoaded] = useState(false)
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading")
+  const [savedSettings, setSavedSettings] = useState<CalculatorSettings | null>(null)
+  const [savingSnapshot, setSavingSnapshot] = useState<CalculatorSettings | null>(null)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle")
+  const savingSettingsRef = useRef(false)
   const [quoteOpen, setQuoteOpen] = useState(false)
   const [budgetName, setBudgetName] = useState("")
   const [stlFile, setStlFile] = useState<{ name: string; data: string } | null>(null)
   const [savingBudget, setSavingBudget] = useState(false)
   const [budgetSaved, setBudgetSaved] = useState(false)
 
-  useEffect(() => {
-    getCalculatorSettings()
-      .then((saved) =>
-        setParams({
-          ...DEFAULT_PARAMS,
-          hourlyRate: saved.hourlyRate,
-          profitMargin: saved.profitMargin,
-          sandingCost: saved.sandingCost,
-          paintingCost: saved.paintingCost,
-          packagingQuantity: saved.packagingQuantity,
-          packagingTotalCost: saved.packagingTotalCost,
-          accessoryQuantity: saved.accessoryQuantity,
-          accessoryTotalCost: saved.accessoryTotalCost,
-          roundFinalValue: saved.roundFinalValue,
-          urgency: {
-            normal: saved.urgencyNormal,
-            urgent: saved.urgencyUrgent,
-            veryUrgent: saved.urgencyVeryUrgent,
-          },
-        }),
-      )
-      .catch(() => undefined)
-    setLoaded(true)
+  const loadSettings = useCallback(async () => {
+    setLoadState("loading")
+    setSavedSettings(null)
+    setSaveState("idle")
+    try {
+      const result = await getCalculatorSettings()
+      const settings = result.exists ? result.settings : settingsFromParams(DEFAULT_PARAMS)
+      setParams(paramsFromSettings(settings))
+      setSavedSettings(settings)
+      setLoadState("ready")
+    } catch {
+      setLoadState("error")
+    }
   }, [])
 
   useEffect(() => {
-    if (!loaded) return
-    const timer = window.setTimeout(() => {
-      saveCalculatorSettings({
-        hourlyRate: params.hourlyRate,
-        profitMargin: params.profitMargin,
-        sandingCost: params.sandingCost,
-        paintingCost: params.paintingCost,
-        urgencyNormal: params.urgency.normal,
-        urgencyUrgent: params.urgency.urgent,
-        urgencyVeryUrgent: params.urgency.veryUrgent,
-        packagingQuantity: params.packagingQuantity,
-        packagingTotalCost: params.packagingTotalCost,
-        accessoryQuantity: params.accessoryQuantity,
-        accessoryTotalCost: params.accessoryTotalCost,
-        roundFinalValue: params.roundFinalValue,
-      }).catch(() => undefined)
-    }, 400)
-    return () => window.clearTimeout(timer)
-  }, [params, loaded])
+    void loadSettings()
+  }, [loadSettings])
+
+  const dirty = loadState === "ready" && !sameSettings(savedSettings, settingsFromParams(params))
+  const changedDuringSave = savingSettings && !sameSettings(savingSnapshot, settingsFromParams(params))
+
+  function updateParams(next: AdvancedParams) {
+    setParams(next)
+    setSaveState((current) => current === "saved" || current === "error" ? "idle" : current)
+  }
+
+  async function handleSaveSettings() {
+    if (loadState !== "ready" || !dirty || savingSettingsRef.current) return
+    const submitted = settingsFromParams(params)
+    savingSettingsRef.current = true
+    setSavingSnapshot(submitted)
+    setSavingSettings(true)
+    setSaveState("idle")
+    try {
+      await saveCalculatorSettings(submitted)
+      setSavedSettings(submitted)
+      setSaveState("saved")
+    } catch {
+      setSaveState("error")
+    } finally {
+      savingSettingsRef.current = false
+      setSavingSnapshot(null)
+      setSavingSettings(false)
+    }
+  }
 
   const calculationInput = useMemo(
     () => ({
@@ -311,8 +358,15 @@ export function PricingCalculator() {
 
         <AdvancedParamsSection
           params={params}
-          onChange={setParams}
-          onReset={() => setParams(DEFAULT_PARAMS)}
+          onChange={updateParams}
+          onReset={() => updateParams(DEFAULT_PARAMS)}
+          onSave={() => void handleSaveSettings()}
+          onRetry={() => void loadSettings()}
+          loadState={loadState}
+          saving={savingSettings}
+          dirty={dirty}
+          changedDuringSave={changedDuringSave}
+          saveState={saveState}
         />
 
         </div>
@@ -321,11 +375,11 @@ export function PricingCalculator() {
       <div className="lg:sticky lg:top-6 lg:self-start">
         <div className="flex flex-col gap-4">
           <SummaryPanel input={calculationInput} result={result} />
-          <Button size="lg" className="h-11 w-full text-sm" onClick={handleSaveBudget} disabled={!budgetName.trim() || savingBudget}>
+          <Button size="lg" className="h-11 w-full text-sm" onClick={handleSaveBudget} disabled={!budgetName.trim() || savingBudget || loadState !== "ready"}>
             <FileText />
             {savingBudget ? "Salvando..." : budgetSaved ? "Orçamento salvo" : "Salvar orçamento"}
           </Button>
-          <Button variant="outline" size="lg" className="h-11 w-full text-sm" onClick={() => setQuoteOpen(true)}>
+          <Button variant="outline" size="lg" className="h-11 w-full text-sm" onClick={() => setQuoteOpen(true)} disabled={loadState !== "ready"}>
             Gerar orçamento em PDF
           </Button>
         </div>

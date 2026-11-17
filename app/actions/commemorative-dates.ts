@@ -1,6 +1,7 @@
 'use server'
 
 import { processPendingBlobCleanup } from '@/lib/commemorative-blob-cleanup'
+import { requireLegacyDataAccess } from '@/lib/authz'
 import { db, pool } from '@/lib/db'
 import { sql } from 'drizzle-orm'
 
@@ -75,6 +76,7 @@ async function ensureInitialDates() {
 }
 
 export async function listCommemorativeDates(filters?: { month?: number; priorityOnly?: boolean; search?: string }) {
+  await requireLegacyDataAccess('agenda')
   await ensureInitialDates()
   await processPendingBlobCleanup()
   const clauses = []
@@ -124,6 +126,7 @@ function validateDateInput(input: { name: string; dateStart: string; dateEnd?: s
 }
 
 export async function saveCommemorativeDate(input: { id?: string; name: string; dateStart: string; dateEnd?: string; highPriority: boolean }) {
+  await requireLegacyDataAccess('agenda')
   const { name, dateEnd } = validateDateInput(input)
   const id = input.id || crypto.randomUUID()
   await db.execute(sql`
@@ -135,6 +138,7 @@ export async function saveCommemorativeDate(input: { id?: string; name: string; 
 }
 
 export async function deleteCommemorativeDate(id: string) {
+  await requireLegacyDataAccess('agenda')
   const client = await pool.connect()
   let count = 0
   let urls: string[] = []
@@ -158,12 +162,14 @@ export async function deleteCommemorativeDate(id: string) {
 }
 
 export async function updateSTLModelName(id: string, modelName: string) {
+  await requireLegacyDataAccess('agenda')
   const name = modelName.trim()
   if (!id || !name) throw new Error('Informe o nome do modelo.')
   await db.execute(sql`UPDATE commemorative_stl_models SET model_name = ${name}, updated_at = now() WHERE id = ${id}`)
 }
 
 export async function deleteSTLModel(id: string) {
+  await requireLegacyDataAccess('agenda')
   const client = await pool.connect()
   let url = ''
   let count = 0

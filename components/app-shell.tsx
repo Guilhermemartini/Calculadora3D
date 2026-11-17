@@ -1,9 +1,10 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { authClient } from "@/lib/auth-client"
 import { Boxes, Calculator, CalendarDays, FileText, Layers, Link2, Menu } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect, useState } from "react"
 
 const NAV = [
@@ -56,7 +57,17 @@ function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { data: session, isPending, error } = authClient.useSession()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  useEffect(() => {
+    if (!isPending && !error && !session) {
+      const returnTo = encodeURIComponent(pathname || "/")
+      router.replace(`/login?reason=session-expired&returnTo=${returnTo}`)
+    }
+  }, [error, isPending, pathname, router, session])
 
   useEffect(() => {
     setMobileOpen(false)
@@ -94,6 +105,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Conteúdo */}
       <div className="lg:pl-64">
+        <div className="flex items-center justify-end gap-3 border-b border-border bg-card/60 px-4 py-2.5 sm:px-6">
+          <span className="max-w-[55vw] truncate text-xs text-muted-foreground sm:text-sm">
+            {session?.user.email ?? "Sessão verificada"}
+          </span>
+          <button
+            type="button"
+            disabled={signingOut}
+            onClick={async () => {
+              setSigningOut(true)
+              try {
+                await authClient.signOut()
+                router.replace("/login")
+                router.refresh()
+              } finally {
+                setSigningOut(false)
+              }
+            }}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60 sm:text-sm"
+          >
+            {signingOut ? "Saindo..." : "Sair"}
+          </button>
+        </div>
         {/* Barra superior - mobile */}
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/80 px-4 py-3 backdrop-blur lg:hidden">
           <button

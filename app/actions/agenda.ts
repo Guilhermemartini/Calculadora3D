@@ -1,6 +1,7 @@
 'use server'
 
 import { db } from '@/lib/db'
+import { requireLegacyDataAccess } from '@/lib/authz'
 import { sql } from 'drizzle-orm'
 
 export type AgendaStatus = 'a_fazer' | 'em_producao' | 'concluido'
@@ -32,6 +33,7 @@ function map(row: Record<string, unknown>): AgendaTask {
 }
 
 export async function listAgendaTasks(startDate: string, endDate: string) {
+  await requireLegacyDataAccess('agenda')
   const result = await db.execute(sql`
     SELECT * FROM agenda_tasks
     WHERE task_date BETWEEN ${startDate}::date AND ${endDate}::date
@@ -41,6 +43,7 @@ export async function listAgendaTasks(startDate: string, endDate: string) {
 }
 
 export async function listAllAgendaTasks() {
+  await requireLegacyDataAccess('agenda')
   const result = await db.execute(sql`
     SELECT * FROM agenda_tasks
     ORDER BY task_date ASC, task_time ASC, created_at ASC
@@ -57,6 +60,7 @@ export async function saveAgendaTask(input: {
   status: AgendaStatus
   notes?: string | null
 }) {
+  await requireLegacyDataAccess('agenda')
   await db.execute(sql`
     INSERT INTO agenda_tasks (id, task_date, name, image_data, task_time, status, notes)
     VALUES (${input.id}, ${input.date}::date, ${input.name}, ${input.imageData ?? null}, ${input.time}, ${input.status}, ${input.notes ?? null})
@@ -72,18 +76,21 @@ export async function saveAgendaTask(input: {
 }
 
 export async function updateAgendaTaskStatus(id: string, status: AgendaStatus) {
+  await requireLegacyDataAccess('agenda')
   await db.execute(sql`
     UPDATE agenda_tasks SET status = ${status}, updated_at = now() WHERE id = ${id}
   `)
 }
 
 export async function moveAgendaTask(id: string, date: string) {
+  await requireLegacyDataAccess('agenda')
   await db.execute(sql`
     UPDATE agenda_tasks SET task_date = ${date}::date, updated_at = now() WHERE id = ${id}
   `)
 }
 
 export async function deleteAgendaTask(id: string) {
+  await requireLegacyDataAccess('agenda')
   await db.execute(sql`DELETE FROM agenda_tasks WHERE id = ${id}`)
 }
 

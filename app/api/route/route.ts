@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
+import { authorizationFailure, authorizeLegacyRequest } from "@/lib/authz"
 
 export async function GET(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, "calculator")
+  if (!access.ok) return authorizationFailure(access)
   const params = new URL(request.url).searchParams
   const from = params.get("from")
   const to = params.get("to")

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
+import { authorizationFailure, authorizeLegacyRequest } from "@/lib/authz"
 
 export async function GET(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, "calculator")
+  if (!access.ok) return authorizationFailure(access)
   const query = new URL(request.url).searchParams.get("q")?.trim()
   if (!query) return NextResponse.json({ error: "Endereço não informado." }, { status: 400 })
   const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(query)}`, { headers: { "User-Agent": "Calculadora3D/1.0 contato@calculadora3d.local" }, next: { revalidate: 3600 } })

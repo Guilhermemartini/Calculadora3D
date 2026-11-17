@@ -1,8 +1,10 @@
 import { AppShell } from "@/components/app-shell"
 import { FilamentStock } from "@/components/filament-stock"
 import { Layers } from "lucide-react"
+import { requireLegacyPageAccess } from "@/lib/authz"
 
-export default function EstoquePage() {
+export default async function EstoquePage() {
+  await requireLegacyPageAccess("filaments")
   return (
     <AppShell>
       <main className="min-h-svh">

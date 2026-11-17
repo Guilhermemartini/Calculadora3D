@@ -1,7 +1,10 @@
 import { put } from "@vercel/blob"
 import { NextResponse } from "next/server"
+import { authorizationFailure, authorizeLegacyRequest } from "@/lib/authz"
 
 export async function POST(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, "agenda")
+  if (!access.ok) return authorizationFailure(access)
   try {
     const formData = await request.formData()
     const file = formData.get("file")

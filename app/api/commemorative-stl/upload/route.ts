@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { authorizationFailure, authorizeLegacyRequest } from '@/lib/authz'
 import { handleUpload } from '@vercel/blob/client'
 import { sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -19,6 +20,8 @@ function parseMetadata(value: string | null): UploadMetadata | null {
 }
 
 export async function POST(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, 'agenda')
+  if (!access.ok) return authorizationFailure(access)
   try {
     const body = await request.json()
     const result = await handleUpload({

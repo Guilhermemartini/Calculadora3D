@@ -1,9 +1,12 @@
 import { put } from '@vercel/blob'
 import { NextResponse } from 'next/server'
+import { authorizationFailure, authorizeLegacyRequest } from '@/lib/authz'
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 
 export async function POST(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, 'shortcuts')
+  if (!access.ok) return authorizationFailure(access)
   try {
     const formData = await request.formData()
     const file = formData.get('file')

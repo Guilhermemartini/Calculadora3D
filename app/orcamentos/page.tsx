@@ -1,7 +1,9 @@
 import { AppShell } from "@/components/app-shell"
 import { BudgetManager } from "@/components/budget-manager"
+import { requireLegacyPageAccess } from "@/lib/authz"
 
-export default function OrcamentosPage() {
+export default async function OrcamentosPage() {
+  await requireLegacyPageAccess("budgets")
   return (
     <AppShell>
       <main className="min-h-svh px-4 py-6 sm:px-6 sm:py-8">

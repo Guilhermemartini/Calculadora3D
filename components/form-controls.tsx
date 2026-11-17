@@ -157,11 +157,13 @@ export function Switch({
   onChange,
   id,
   "aria-label": ariaLabel,
+  disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   id?: string
   "aria-label"?: string
+  disabled?: boolean
 }) {
   return (
     <button
@@ -170,10 +172,12 @@ export function Switch({
       role="switch"
       aria-label={ariaLabel}
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
         checked ? "bg-primary" : "bg-input",
+        disabled && "cursor-not-allowed opacity-50",
       )}
     >
       <span

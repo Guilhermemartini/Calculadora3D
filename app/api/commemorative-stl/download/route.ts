@@ -1,10 +1,13 @@
 import { db } from '@/lib/db'
+import { authorizationFailure, authorizeLegacyRequest } from '@/lib/authz'
 import { sql } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
+  const access = await authorizeLegacyRequest(request.headers, 'agenda')
+  if (!access.ok) return authorizationFailure(access)
   const id = request.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Arquivo não informado.' }, { status: 400 })
   const result = await db.execute(sql`SELECT original_filename, blob_url FROM commemorative_stl_models WHERE id = ${id} LIMIT 1`)

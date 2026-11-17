@@ -1,4 +1,5 @@
 import { db, pool } from '@/lib/db'
+import { authorizationFailure, authorizeLegacyRequest } from '@/lib/authz'
 import { processPendingBlobCleanup } from '@/lib/commemorative-blob-cleanup'
 import { del, head } from '@vercel/blob'
 import { sql } from 'drizzle-orm'
@@ -51,6 +52,8 @@ async function registerFile(metadata: Metadata) {
 }
 
 export async function POST(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, 'agenda')
+  if (!access.ok) return authorizationFailure(access)
   let metadata: Metadata | null = null
   try {
     metadata = await request.json() as Metadata
@@ -64,6 +67,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const access = await authorizeLegacyRequest(request.headers, 'agenda')
+  if (!access.ok) return authorizationFailure(access)
   try {
     const { pathname } = await request.json() as { pathname?: string }
     if (!pathname?.startsWith(PENDING_PREFIX)) return NextResponse.json({ error: 'Arquivo inválido.' }, { status: 400 })

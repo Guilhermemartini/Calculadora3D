@@ -1,13 +1,17 @@
 import { betterAuth } from "better-auth"
+import { randomBytes } from "node:crypto"
 import { Pool } from "pg"
 
+const globalForAuth = globalThis as typeof globalThis & { authPool?: Pool; authSecret?: string }
 const connectionString = process.env.DATABASE_URL
-const secret = process.env.BETTER_AUTH_SECRET
+const secret = process.env.BETTER_AUTH_SECRET || (
+  process.env.NODE_ENV === "development"
+    ? (globalForAuth.authSecret ??= randomBytes(32).toString("base64url"))
+    : undefined
+)
 
 if (!connectionString) throw new Error("DATABASE_URL must be configured.")
 if (!secret) throw new Error("BETTER_AUTH_SECRET must be configured.")
-
-const globalForAuth = globalThis as typeof globalThis & { authPool?: Pool }
 
 const authPool =
   globalForAuth.authPool ??

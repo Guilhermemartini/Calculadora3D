@@ -30,7 +30,7 @@ function formatDay(date: Date) { return new Intl.DateTimeFormat("pt-BR", { weekd
 function emptyForm(date: string): FormState { return { id: "", date, name: "", imageData: null, imageFile: null, time: "09:00", status: "a_fazer", notes: "" } }
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
 
-export function AgendaBoard({ initialTasks, initialWeek, initialCommemorativeDates }: { initialTasks: AgendaTask[]; initialWeek: string; initialCommemorativeDates: CommemorativeDate[] }) {
+export function AgendaBoard({ userId, initialTasks, initialWeek, initialCommemorativeDates }: { userId: string; initialTasks: AgendaTask[]; initialWeek: string; initialCommemorativeDates: CommemorativeDate[] }) {
   const [week, setWeek] = useState(() => new Date(`${initialWeek}T12:00:00`))
   const [tasks, setTasks] = useState(initialTasks)
   const [allTasks, setAllTasks] = useState(initialTasks)
@@ -114,7 +114,7 @@ export function AgendaBoard({ initialTasks, initialWeek, initialCommemorativeDat
         <button type="button" role="tab" aria-selected={view === "listagem"} onClick={() => setView("listagem")} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === "listagem" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><List className="size-4" /> Listagem</button>
         <button type="button" role="tab" aria-selected={view === "datas"} onClick={() => setView("datas")} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === "datas" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><Gift className="size-4" /> Datas comemorativas</button>
       </div>
-      {view === "datas" ? <CommemorativeDatesManager initialDates={initialCommemorativeDates} /> : view === "agenda" ? <>
+      {view === "datas" ? <CommemorativeDatesManager userId={userId} initialDates={initialCommemorativeDates} /> : view === "agenda" ? <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3">
         <div className="flex items-center gap-2"><Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Semana anterior"><ChevronLeft /></Button><Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próxima semana"><ChevronRight /></Button><Button variant="outline" onClick={goToday}><CalendarDays /> Hoje</Button></div>
         <div className="flex flex-wrap items-center gap-2">

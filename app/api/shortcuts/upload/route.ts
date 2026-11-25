@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const blob = await put(`shortcuts/${crypto.randomUUID()}.${extension}`, file, {
+    const blob = await put(`shortcuts/${access.user.id}/${crypto.randomUUID()}.${extension}`, file, {
       access: 'public',
       addRandomSuffix: false,
       contentType: file.type,

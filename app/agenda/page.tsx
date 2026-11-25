@@ -11,12 +11,12 @@ function dateKey(date: Date) {
 }
 
 export default async function AgendaPage() {
-  await requireLegacyPageAccess("agenda")
+  const user = await requireLegacyPageAccess("agenda")
   const [tasks, commemorativeDates] = await Promise.all([listAllAgendaTasks(), listCommemorativeDates()])
 
   return (
     <AppShell>
-      <AgendaBoard initialTasks={tasks} initialWeek={dateKey(new Date())} initialCommemorativeDates={commemorativeDates} />
+      <AgendaBoard userId={user.id} initialTasks={tasks} initialWeek={dateKey(new Date())} initialCommemorativeDates={commemorativeDates} />
     </AppShell>
   )
 }

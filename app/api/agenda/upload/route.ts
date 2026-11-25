@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: "A imagem deve ter no máximo 5 MB." }, { status: 413 })
     }
-    const blob = await put(`agenda/${crypto.randomUUID()}-${file.name}`, file, { access: "public" })
+    const safeFilename = file.name.replace(/[\\/\\r\\n]/g, "_")
+    const blob = await put(`agenda/${access.user.id}/${crypto.randomUUID()}-${safeFilename}`, file, { access: "public" })
     return NextResponse.json({ url: blob.url })
   } catch (error) {
     console.error("Agenda image upload error:", error)

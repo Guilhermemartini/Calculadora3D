@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { requireLegacyDataAccess } from '@/lib/authz'
+import { del } from '@vercel/blob'
 import { sql } from 'drizzle-orm'
 
 export type Budget = {
@@ -39,23 +40,30 @@ function map(row: Record<string, unknown>): Budget {
 }
 
 export async function listBudgets() {
-  await requireLegacyDataAccess('budgets')
-  const result = await db.execute(sql`SELECT * FROM budgets ORDER BY created_at DESC`)
+  const user = await requireLegacyDataAccess('budgets')
+  const result = await db.execute(sql`SELECT * FROM budgets WHERE user_id = ${user.id} ORDER BY created_at DESC`)
   return result.rows.map((row) => map(row as Record<string, unknown>))
 }
 
 export async function getBudget(id: string) {
-  await requireLegacyDataAccess('budgets')
-  const result = await db.execute(sql`SELECT * FROM budgets WHERE id = ${id} LIMIT 1`)
+  const user = await requireLegacyDataAccess('budgets')
+  const result = await db.execute(sql`SELECT * FROM budgets WHERE id = ${id} AND user_id = ${user.id} LIMIT 1`)
   return result.rows[0] ? map(result.rows[0] as Record<string, unknown>) : null
 }
 
 export async function saveBudget(input: Omit<Budget, 'createdAt' | 'updatedAt'>) {
-  await requireLegacyDataAccess('budgets')
-  await db.execute(sql`INSERT INTO budgets (id, name, stl_file_name, stl_file_data, snapshot_data, weight, hours, minutes, print_value, finishes, freight_enabled, origin, destination, distance_km, vehicle, freight_value, total_value) VALUES (${input.id}, ${input.name}, ${input.stlFileName}, ${input.stlFileData}, ${input.snapshotData}, ${input.weight}, ${input.hours}, ${input.minutes}, ${input.printValue}, ${JSON.stringify(input.finishes)}::jsonb, ${input.freightEnabled}, ${input.origin}, ${input.destination}, ${input.distanceKm}, ${input.vehicle}, ${input.freightValue}, ${input.totalValue}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, stl_file_name = EXCLUDED.stl_file_name, stl_file_data = EXCLUDED.stl_file_data, snapshot_data = EXCLUDED.snapshot_data, weight = EXCLUDED.weight, hours = EXCLUDED.hours, minutes = EXCLUDED.minutes, print_value = EXCLUDED.print_value, finishes = EXCLUDED.finishes, freight_enabled = EXCLUDED.freight_enabled, origin = EXCLUDED.origin, destination = EXCLUDED.destination, distance_km = EXCLUDED.distance_km, vehicle = EXCLUDED.vehicle, freight_value = EXCLUDED.freight_value, total_value = EXCLUDED.total_value, updated_at = now()`)
+  const user = await requireLegacyDataAccess('budgets')
+  if (input.stlFileData && !input.stlFileData.startsWith(`budgets/${user.id}/pending/${input.id}/`)) {
+    throw new Error('O arquivo STL não pertence a esta conta ou orçamento.')
+  }
+  await db.execute(sql`INSERT INTO budgets (id, user_id, name, stl_file_name, stl_file_data, snapshot_data, weight, hours, minutes, print_value, finishes, freight_enabled, origin, destination, distance_km, vehicle, freight_value, total_value) VALUES (${input.id}, ${user.id}, ${input.name}, ${input.stlFileName}, ${input.stlFileData}, ${input.snapshotData}, ${input.weight}, ${input.hours}, ${input.minutes}, ${input.printValue}, ${JSON.stringify(input.finishes)}::jsonb, ${input.freightEnabled}, ${input.origin}, ${input.destination}, ${input.distanceKm}, ${input.vehicle}, ${input.freightValue}, ${input.totalValue}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, stl_file_name = EXCLUDED.stl_file_name, stl_file_data = EXCLUDED.stl_file_data, snapshot_data = EXCLUDED.snapshot_data, weight = EXCLUDED.weight, hours = EXCLUDED.hours, minutes = EXCLUDED.minutes, print_value = EXCLUDED.print_value, finishes = EXCLUDED.finishes, freight_enabled = EXCLUDED.freight_enabled, origin = EXCLUDED.origin, destination = EXCLUDED.destination, distance_km = EXCLUDED.distance_km, vehicle = EXCLUDED.vehicle, freight_value = EXCLUDED.freight_value, total_value = EXCLUDED.total_value, updated_at = now() WHERE budgets.user_id = EXCLUDED.user_id`)
 }
 
 export async function deleteBudget(id: string) {
-  await requireLegacyDataAccess('budgets')
-  await db.execute(sql`DELETE FROM budgets WHERE id = ${id}`)
+  const user = await requireLegacyDataAccess('budgets')
+  const result = await db.execute(sql`DELETE FROM budgets WHERE id = ${id} AND user_id = ${user.id} RETURNING stl_file_data`)
+  const pathname = (result.rows[0] as { stl_file_data?: string | null } | undefined)?.stl_file_data
+  if (pathname?.startsWith(`budgets/${user.id}/`)) {
+    await del(pathname).catch((error) => console.error('Budget STL cleanup failed:', error))
+  }
 }

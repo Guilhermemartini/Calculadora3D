@@ -51,20 +51,21 @@ const initialDates = [
   ['reveillon', 'Réveillon', '2027-12-31', '2027-12-31', false],
 ] as const
 
-async function ensureInitialDates() {
+async function ensureInitialDates(userId: string) {
   const client = await pool.connect()
+  const markerKey = `commemorative-dates-2027:${userId}`
   try {
     await client.query('BEGIN')
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('commemorative-dates-2027-seed'))")
-    const marker = await client.query("SELECT marker_key FROM app_initialization_markers WHERE marker_key = 'commemorative-dates-2027'")
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`commemorative-dates-2027-seed:${userId}`])
+    const marker = await client.query('SELECT marker_key FROM app_initialization_markers WHERE marker_key = $1', [markerKey])
     if (marker.rowCount === 0) {
       for (const [slug, name, start, end, priority] of initialDates) {
         await client.query(
-          'INSERT INTO commemorative_dates (id, name, date_start, date_end, high_priority) VALUES ($1, $2, $3::date, $4::date, $5) ON CONFLICT (id) DO NOTHING',
-          [`2027-${slug}`, name, start, end, priority],
+          'INSERT INTO commemorative_dates (id, user_id, name, date_start, date_end, high_priority) VALUES ($1, $2, $3, $4::date, $5::date, $6) ON CONFLICT (id) DO NOTHING',
+          [`${userId}-2027-${slug}`, userId, name, start, end, priority],
         )
       }
-      await client.query("INSERT INTO app_initialization_markers (marker_key) VALUES ('commemorative-dates-2027') ON CONFLICT (marker_key) DO NOTHING")
+      await client.query('INSERT INTO app_initialization_markers (marker_key) VALUES ($1) ON CONFLICT (marker_key) DO NOTHING', [markerKey])
     }
     await client.query('COMMIT')
   } catch (error) {
@@ -76,19 +77,19 @@ async function ensureInitialDates() {
 }
 
 export async function listCommemorativeDates(filters?: { month?: number; priorityOnly?: boolean; search?: string }) {
-  await requireLegacyDataAccess('agenda')
-  await ensureInitialDates()
+  const user = await requireLegacyDataAccess('agenda')
+  await ensureInitialDates(user.id)
   await processPendingBlobCleanup()
-  const clauses = []
+  const clauses = [sql`d.user_id = ${user.id}`]
   if (filters?.month && filters.month >= 1 && filters.month <= 12) {
     clauses.push(sql`EXISTS (SELECT 1 FROM generate_series(date_trunc('month', d.date_start), date_trunc('month', d.date_end), interval '1 month') AS event_month WHERE EXTRACT(MONTH FROM event_month) = ${filters.month})`)
   }
   if (filters?.priorityOnly) clauses.push(sql`d.high_priority = true`)
   if (filters?.search?.trim()) {
     const term = `%${filters.search.trim()}%`
-    clauses.push(sql`(d.name ILIKE ${term} OR EXISTS (SELECT 1 FROM commemorative_stl_models m WHERE m.commemorative_date_id = d.id AND m.model_name ILIKE ${term}))`)
+    clauses.push(sql`(d.name ILIKE ${term} OR EXISTS (SELECT 1 FROM commemorative_stl_models m WHERE m.user_id = ${user.id} AND m.commemorative_date_id = d.id AND m.model_name ILIKE ${term}))`)
   }
-  const whereClause = clauses.length ? sql`WHERE ${sql.join(clauses, sql` AND `)}` : sql``
+  const whereClause = sql`WHERE ${sql.join(clauses, sql` AND `)}`
   const dateResult = await db.execute(sql`
     SELECT d.id, d.name, d.date_start::text AS date_start, d.date_end::text AS date_end, d.high_priority
     FROM commemorative_dates d ${whereClause}
@@ -99,7 +100,7 @@ export async function listCommemorativeDates(filters?: { month?: number; priorit
   const modelResult = await db.execute(sql`
     SELECT id, commemorative_date_id, model_name, original_filename, size_bytes, created_at
     FROM commemorative_stl_models
-    WHERE commemorative_date_id IN (${sql.join(dates.map((date) => sql`${String(date.id)}`), sql`, `)})
+    WHERE user_id = ${user.id} AND commemorative_date_id IN (${sql.join(dates.map((date) => sql`${String(date.id)}`), sql`, `)})
     ORDER BY created_at
   `)
   const byDate = new Map<string, STLModel[]>()
@@ -126,28 +127,29 @@ function validateDateInput(input: { name: string; dateStart: string; dateEnd?: s
 }
 
 export async function saveCommemorativeDate(input: { id?: string; name: string; dateStart: string; dateEnd?: string; highPriority: boolean }) {
-  await requireLegacyDataAccess('agenda')
+  const user = await requireLegacyDataAccess('agenda')
   const { name, dateEnd } = validateDateInput(input)
   const id = input.id || crypto.randomUUID()
   await db.execute(sql`
-    INSERT INTO commemorative_dates (id, name, date_start, date_end, high_priority)
-    VALUES (${id}, ${name}, ${input.dateStart}::date, ${dateEnd}::date, ${input.highPriority})
+    INSERT INTO commemorative_dates (id, user_id, name, date_start, date_end, high_priority)
+    VALUES (${id}, ${user.id}, ${name}, ${input.dateStart}::date, ${dateEnd}::date, ${input.highPriority})
     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, date_start = EXCLUDED.date_start, date_end = EXCLUDED.date_end, high_priority = EXCLUDED.high_priority, updated_at = now()
+    WHERE commemorative_dates.user_id = EXCLUDED.user_id
   `)
   return id
 }
 
 export async function deleteCommemorativeDate(id: string) {
-  await requireLegacyDataAccess('agenda')
+  const user = await requireLegacyDataAccess('agenda')
   const client = await pool.connect()
   let count = 0
   let urls: string[] = []
   try {
     await client.query('BEGIN')
-    const files = await client.query('SELECT blob_url FROM commemorative_stl_models WHERE commemorative_date_id = $1', [id])
+    const files = await client.query('SELECT blob_url FROM commemorative_stl_models WHERE commemorative_date_id = $1 AND user_id = $2', [id, user.id])
     urls = files.rows.map((row: { blob_url: string | null }) => row.blob_url).filter((url: string | null): url is string => Boolean(url))
     for (const url of urls) await client.query('INSERT INTO commemorative_blob_cleanup (blob_url) VALUES ($1) ON CONFLICT (blob_url) DO NOTHING', [url])
-    const result = await client.query('DELETE FROM commemorative_dates WHERE id = $1 RETURNING id', [id])
+    const result = await client.query('DELETE FROM commemorative_dates WHERE id = $1 AND user_id = $2 RETURNING id', [id, user.id])
     count = result.rowCount ?? result.rows.length
     await client.query('COMMIT')
   } catch (error) {
@@ -162,23 +164,23 @@ export async function deleteCommemorativeDate(id: string) {
 }
 
 export async function updateSTLModelName(id: string, modelName: string) {
-  await requireLegacyDataAccess('agenda')
+  const user = await requireLegacyDataAccess('agenda')
   const name = modelName.trim()
   if (!id || !name) throw new Error('Informe o nome do modelo.')
-  await db.execute(sql`UPDATE commemorative_stl_models SET model_name = ${name}, updated_at = now() WHERE id = ${id}`)
+  await db.execute(sql`UPDATE commemorative_stl_models SET model_name = ${name}, updated_at = now() WHERE id = ${id} AND user_id = ${user.id}`)
 }
 
 export async function deleteSTLModel(id: string) {
-  await requireLegacyDataAccess('agenda')
+  const user = await requireLegacyDataAccess('agenda')
   const client = await pool.connect()
   let url = ''
   let count = 0
   try {
     await client.query('BEGIN')
-    const file = await client.query('SELECT blob_url FROM commemorative_stl_models WHERE id = $1 LIMIT 1', [id])
+    const file = await client.query('SELECT blob_url FROM commemorative_stl_models WHERE id = $1 AND user_id = $2 LIMIT 1', [id, user.id])
     url = file.rows[0]?.blob_url ?? ''
     if (url) await client.query('INSERT INTO commemorative_blob_cleanup (blob_url) VALUES ($1) ON CONFLICT (blob_url) DO NOTHING', [url])
-    const result = await client.query('DELETE FROM commemorative_stl_models WHERE id = $1 RETURNING id', [id])
+    const result = await client.query('DELETE FROM commemorative_stl_models WHERE id = $1 AND user_id = $2 RETURNING id', [id, user.id])
     count = result.rowCount ?? result.rows.length
     await client.query('COMMIT')
   } catch (error) {

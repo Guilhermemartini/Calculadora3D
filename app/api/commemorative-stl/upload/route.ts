@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 const MAX_FILE_SIZE = 50_000_000
-const PENDING_PREFIX = 'commemorative-stl/pending/'
 
 type UploadMetadata = { dateId: string; modelId: string | null; modelName: string; originalFilename: string }
 
@@ -22,6 +21,7 @@ function parseMetadata(value: string | null): UploadMetadata | null {
 export async function POST(request: Request) {
   const access = await authorizeLegacyRequest(request.headers, 'agenda')
   if (!access.ok) return authorizationFailure(access)
+  const pendingPrefix = `commemorative-stl/${access.user.id}/pending/`
   try {
     const body = await request.json()
     const result = await handleUpload({
@@ -29,11 +29,11 @@ export async function POST(request: Request) {
       body,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         const metadata = parseMetadata(clientPayload)
-        if (!metadata || !pathname.startsWith(PENDING_PREFIX) || !pathname.toLowerCase().endsWith('.stl')) throw new Error('Arquivo ou dados do envio inválidos.')
-        const validDate = await db.execute(sql`SELECT id FROM commemorative_dates WHERE id = ${metadata.dateId} LIMIT 1`)
+        if (!metadata || !pathname.startsWith(pendingPrefix) || !pathname.toLowerCase().endsWith('.stl')) throw new Error('Arquivo ou dados do envio inválidos.')
+        const validDate = await db.execute(sql`SELECT id FROM commemorative_dates WHERE id = ${metadata.dateId} AND user_id = ${access.user.id} LIMIT 1`)
         if (!validDate.rows.length) throw new Error('A comemoração não foi encontrada.')
         if (metadata.modelId) {
-          const validModel = await db.execute(sql`SELECT id FROM commemorative_stl_models WHERE id = ${metadata.modelId} AND commemorative_date_id = ${metadata.dateId} LIMIT 1`)
+          const validModel = await db.execute(sql`SELECT id FROM commemorative_stl_models WHERE id = ${metadata.modelId} AND commemorative_date_id = ${metadata.dateId} AND user_id = ${access.user.id} LIMIT 1`)
           if (!validModel.rows.length) throw new Error('O modelo a substituir não foi encontrado.')
         }
         return {

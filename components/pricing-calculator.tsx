@@ -7,6 +7,7 @@ import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
 import { QuoteDialog } from "@/components/quote-dialog"
 import { SummaryPanel } from "@/components/summary-panel"
 import { Button } from "@/components/ui/button"
+import { upload as uploadToBlob } from "@vercel/blob/client"
 import {
   type AdvancedParams,
   type CalculatorInput,
@@ -83,7 +84,7 @@ function sameSettings(left: CalculatorSettings | null, right: CalculatorSettings
   return left !== null && JSON.stringify(left) === JSON.stringify(right)
 }
 
-export function PricingCalculator() {
+export function PricingCalculator({ userId }: { userId: string }) {
   const [input, setInput] = useState<CalculatorInput>(DEFAULT_INPUT)
   const [params, setParams] = useState<AdvancedParams>(DEFAULT_PARAMS)
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading")
@@ -94,7 +95,9 @@ export function PricingCalculator() {
   const savingSettingsRef = useRef(false)
   const [quoteOpen, setQuoteOpen] = useState(false)
   const [budgetName, setBudgetName] = useState("")
-  const [stlFile, setStlFile] = useState<{ name: string; data: string } | null>(null)
+  const [stlFile, setStlFile] = useState<File | null>(null)
+  const [stlUploadProgress, setStlUploadProgress] = useState<number | null>(null)
+  const [budgetError, setBudgetError] = useState("")
   const [savingBudget, setSavingBudget] = useState(false)
   const [budgetSaved, setBudgetSaved] = useState(false)
 
@@ -166,19 +169,51 @@ export function PricingCalculator() {
 
   async function handleSaveBudget() {
     if (!budgetName.trim() || savingBudget) return
+    if (stlFile && !stlFile.name.toLowerCase().endsWith(".stl")) {
+      setBudgetError("Selecione um arquivo com extensão .stl.")
+      return
+    }
+    if (stlFile && stlFile.size > 50_000_000) {
+      setBudgetError("O arquivo STL deve ter no máximo 50.000.000 bytes (50 MB).")
+      return
+    }
     setSavingBudget(true)
+    setBudgetError("")
+    const id = crypto.randomUUID()
+    let uploadedPathname = ""
     try {
+      let stlFileData: string | null = null
+      if (stlFile) {
+        setStlUploadProgress(0)
+        const safeFilename = stlFile.name.replace(/[\\/\\r\\n]/g, "_")
+        const blob = await uploadToBlob(`budgets/${userId}/pending/${id}/${safeFilename}`, stlFile, {
+          access: "public",
+          handleUploadUrl: "/api/budgets-stl/upload",
+          clientPayload: JSON.stringify({ budgetId: id, originalFilename: stlFile.name }),
+          contentType: "model/stl",
+          multipart: true,
+          onUploadProgress: ({ percentage }) => setStlUploadProgress(percentage),
+        })
+        uploadedPathname = blob.pathname
+        stlFileData = blob.pathname
+      }
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="420"><rect width="100%" height="100%" fill="#171717"/><text x="50%" y="48%" text-anchor="middle" fill="#f97316" font-size="34" font-family="sans-serif">' + budgetName + '</text><text x="50%" y="60%" text-anchor="middle" fill="#a3a3a3" font-size="18" font-family="sans-serif">Preview do modelo 3D</text></svg>'
       const snapshot = `data:image/svg+xml,${encodeURIComponent(svg)}`
       await saveBudget({
-        id: crypto.randomUUID(), name: budgetName.trim(), stlFileName: stlFile?.name ?? null, stlFileData: stlFile?.data ?? null, snapshotData: snapshot,
+        id, name: budgetName.trim(), stlFileName: stlFile?.name ?? null, stlFileData, snapshotData: snapshot,
         weight: input.weight, hours: input.hours, minutes: input.minutes, printValue: result.final,
         finishes: [{ name: FINISHING_LABELS[input.finishing], value: result.finishingCost }, { name: "Embalagem", value: result.packagingCost }, { name: "Acessório", value: result.accessoryCost }].filter((item) => item.value > 0),
         freightEnabled: calculationInput.freightEnabled, origin: calculationInput.freightOrigin || null, destination: calculationInput.freightDestination || null, distanceKm: calculationInput.freightDistanceKm, vehicle: calculationInput.vehicle, freightValue: result.freightCost, totalValue: result.final,
       })
       setBudgetSaved(true)
       window.setTimeout(() => setBudgetSaved(false), 2500)
-    } finally { setSavingBudget(false) }
+    } catch (error) {
+      if (uploadedPathname) await fetch("/api/budgets-stl/upload", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pathname: uploadedPathname }) }).catch(() => undefined)
+      setBudgetError(error instanceof Error ? error.message : "Não foi possível salvar o orçamento.")
+    } finally {
+      setSavingBudget(false)
+      setStlUploadProgress(null)
+    }
   }
 
   return (
@@ -352,8 +387,9 @@ export function PricingCalculator() {
           <div className="mb-4 flex items-center gap-2.5"><FileText className="size-4 text-primary" /><h2 className="text-base font-semibold">Salvar orçamento</h2></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome do orçamento" htmlFor="budget-name"><input id="budget-name" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} placeholder="Ex.: Suporte de parede" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-3 focus:ring-ring/40" /></Field>
-            <Field label="Modelo STL" htmlFor="budget-stl"><input id="budget-stl" type="file" accept=".stl,model/stl" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setStlFile({ name: file.name, data: String(reader.result) }); reader.readAsDataURL(file) }} className="h-10 w-full cursor-pointer rounded-xl border border-input bg-background px-3 py-2 text-sm" /></Field>
+            <Field label="Modelo STL" htmlFor="budget-stl"><input id="budget-stl" type="file" accept=".stl,model/stl" onChange={(event) => { const file = event.target.files?.[0] ?? null; setBudgetError(""); if (file && !file.name.toLowerCase().endsWith(".stl")) { setBudgetError("Selecione um arquivo com extensão .stl."); event.currentTarget.value = ""; setStlFile(null); return } setStlFile(file) }} className="h-10 w-full cursor-pointer rounded-xl border border-input bg-background px-3 py-2 text-sm" /><span className="mt-1 block truncate text-xs text-muted-foreground">{stlUploadProgress !== null ? `Enviando STL: ${Math.round(stlUploadProgress)}%` : stlFile?.name ?? "Opcional · até 50 MB"}</span></Field>
           </div>
+          {budgetError ? <p role="alert" className="mt-3 text-sm text-destructive">{budgetError}</p> : null}
         </section>
 
         <AdvancedParamsSection

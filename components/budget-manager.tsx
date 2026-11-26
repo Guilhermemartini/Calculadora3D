@@ -2,9 +2,51 @@
 
 import { deleteBudget, listBudgets, type Budget } from "@/app/actions/budgets"
 import { Button } from "@/components/ui/button"
-import { formatBRL, formatTime } from "@/lib/calc"
-import { Edit3, FileBox, History, Trash2 } from "lucide-react"
+import { calculate, DEFAULT_PARAMS, type CalculatorInput, formatBRL, formatTime } from "@/lib/calc"
+import { generateQuotePDF } from "@/lib/pdf"
+import { readBudgetCalculatorData } from "@/lib/budget-snapshot"
+import { Edit3, FileBox, FileDown, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+
+function downloadBudgetPDF(budget: Budget) {
+  const savedData = readBudgetCalculatorData(budget.snapshotData)
+  const legacyFinishing = budget.finishes.find((finish) => ["Lixar", "Pintar", "Lixar e Pintar"].includes(finish.name))?.name
+  const input: CalculatorInput = savedData?.input ?? {
+    filamentOnly: false,
+    weight: budget.weight,
+    hours: budget.hours,
+    minutes: budget.minutes,
+    material: "PLA",
+    filamentPricePerKg: 100,
+    quantity: 1,
+    finishing: legacyFinishing === "Lixar e Pintar" ? "both" : legacyFinishing === "Lixar" ? "sanding" : legacyFinishing === "Pintar" ? "painting" : "none",
+    additionalCosts: budget.finishes.some((finish) => finish.name === "Embalagem")
+      ? budget.finishes.some((finish) => finish.name === "Acessório") ? "both" : "packaging"
+      : budget.finishes.some((finish) => finish.name === "Acessório") ? "accessory" : "none",
+    urgency: "normal",
+    discountValue: 0,
+    discountType: "brl",
+    freightEnabled: budget.freightEnabled,
+    freightOrigin: budget.origin ?? "",
+    freightDestination: budget.destination ?? "",
+    freightDistanceKm: budget.distanceKm,
+    vehicle: budget.vehicle === "motorcycle" ? "motorcycle" : "car",
+  }
+  const params = savedData?.params ?? {
+    ...DEFAULT_PARAMS,
+    freightEnabled: budget.freightEnabled,
+    freightOrigin: budget.origin ?? "",
+    freightDestination: budget.destination ?? "",
+    freightDistanceKm: budget.distanceKm,
+    vehicle: budget.vehicle === "motorcycle" ? "motorcycle" : "car",
+  }
+  const result = calculate(input, params)
+  generateQuotePDF(input, {
+    ...result,
+    final: budget.totalValue,
+    finalPerPiece: budget.totalValue / Math.max(1, input.quantity),
+  })
+}
 
 export function BudgetManager() {
   const [items, setItems] = useState<Budget[]>([])
@@ -34,7 +76,7 @@ export function BudgetManager() {
           {item.snapshotData ? <img src={item.snapshotData} alt={`Preview de ${item.name}`} className="h-40 w-full bg-muted object-cover" /> : <div className="flex h-40 items-center justify-center bg-muted"><FileBox className="size-10 text-muted-foreground" /></div>}
           <div className="p-4"><h2 className="truncate font-semibold">{item.name}</h2><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Tempo<strong className="mt-1 block text-foreground">{formatTime(item.hours * 60 + item.minutes)}</strong></span><span>Peso<strong className="mt-1 block text-foreground">{item.weight} g</strong></span></div><p className="mt-3 text-lg font-semibold text-primary">{formatBRL(item.totalValue)}</p></div>
         </button>
-        <div className="flex gap-2 border-t border-border p-3"><Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.assign(`/?budget=${item.id}`)}><Edit3 /> Editar</Button><Button variant="ghost" size="icon-sm" onClick={() => remove(item.id)} aria-label="Excluir orçamento"><Trash2 /></Button></div>
+        <div className="flex gap-2 border-t border-border p-3"><Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.assign(`/?budget=${item.id}`)}><Edit3 /> Editar</Button><Button variant="ghost" size="icon-sm" onClick={() => downloadBudgetPDF(item)} aria-label={`Baixar PDF do orçamento ${item.name}`} title="Baixar PDF"><FileDown /></Button><Button variant="ghost" size="icon-sm" onClick={() => remove(item.id)} aria-label="Excluir orçamento"><Trash2 /></Button></div>
       </article>)}
     </div>
     {selected ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4" role="dialog" aria-modal="true"><div className="max-h-[90svh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card shadow-xl"><div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="font-semibold">{selected.name}</h2><Button variant="ghost" size="icon-sm" onClick={() => setSelected(null)} aria-label="Fechar">×</Button></div><div className="flex flex-col gap-4 p-5 text-sm"><div className="grid grid-cols-2 gap-3"><Info label="Tempo" value={formatTime(selected.hours * 60 + selected.minutes)} /><Info label="Peso" value={`${selected.weight} g`} /><Info label="Valor da impressão" value={formatBRL(selected.printValue)} /><Info label="Frete" value={selected.freightEnabled ? formatBRL(selected.freightValue) : "Não calculado"} /><Info label="Valor total" value={formatBRL(selected.totalValue)} /></div><div><p className="mb-2 font-medium">Acabamentos e adicionais</p>{selected.finishes.length ? <ul className="space-y-2">{selected.finishes.map((finish) => <li key={finish.name} className="flex justify-between rounded-lg bg-muted px-3 py-2"><span>{finish.name}</span><span>{formatBRL(finish.value)}</span></li>)}</ul> : <p className="text-muted-foreground">Nenhum acabamento ou adicional.</p>}</div>{selected.freightEnabled ? <div className="rounded-xl bg-muted p-3 text-muted-foreground">{selected.origin} → {selected.destination} · {selected.distanceKm} km · {selected.vehicle === "motorcycle" ? "Moto" : "Carro"}</div> : null}{selected.stlFileName && selected.stlFileData ? <a className="inline-flex w-fit items-center rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted" href={`/api/budgets-stl/download?id=${encodeURIComponent(selected.id)}`}>Baixar STL · {selected.stlFileName}</a> : <p className="text-xs text-muted-foreground">Nenhum STL anexado</p>}</div></div></div> : null}

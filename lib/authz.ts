@@ -17,6 +17,12 @@ export type AccessResult =
   | { ok: true; user: AuthenticatedUser }
   | { ok: false; status: 401 | 403 | 503 }
 
+function summarizeError(error: unknown) {
+  return error instanceof Error
+    ? { name: error.name, message: error.message }
+    : { message: String(error) }
+}
+
 export function authorizationFailure(result: Extract<AccessResult, { ok: false }>) {
   const message = result.status === 401
     ? "Authentication required."
@@ -33,7 +39,8 @@ export async function authorizeLegacyRequest(
   let session: Awaited<ReturnType<typeof auth.api.getSession>>
   try {
     session = await auth.api.getSession({ headers: requestHeaders })
-  } catch {
+  } catch (error) {
+    console.error("[authz] Session verification failed:", summarizeError(error))
     return { ok: false, status: 503 }
   }
   if (!session) return { ok: false, status: 401 }
@@ -45,7 +52,8 @@ export async function authorizeLegacyRequest(
     )
     if (!result.rowCount) return { ok: false, status: 403 }
     return { ok: true, user: session.user }
-  } catch {
+  } catch (error) {
+    console.error("[authz] Legacy access database query failed:", summarizeError(error))
     return { ok: false, status: 503 }
   }
 }

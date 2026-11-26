@@ -35,9 +35,9 @@ const DEFAULT_SETTINGS: CalculatorSettings = {
 }
 
 export async function getCalculatorSettings() {
-  await requireLegacyDataAccess('calculator')
+  const user = await requireLegacyDataAccess('calculator')
   try {
-    const rows = await db.execute(sql`SELECT * FROM calculator_settings WHERE id = 'default' LIMIT 1`)
+    const rows = await db.execute(sql`SELECT * FROM calculator_settings WHERE id = 'default' AND user_id = ${user.id} LIMIT 1`)
     const row = rows.rows[0] as Record<string, unknown> | undefined
     if (!row) return { exists: false, settings: DEFAULT_SETTINGS }
     return {
@@ -63,26 +63,17 @@ export async function getCalculatorSettings() {
 }
 
 function validateSettings(value: unknown): CalculatorSettings {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('Revise os parâmetros informados.')
-  }
-
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Revise os parâmetros informados.')
   const input = value as Record<string, unknown>
   const numericFields = [
     'hourlyRate', 'profitMargin', 'sandingCost', 'paintingCost',
     'urgencyNormal', 'urgencyUrgent', 'urgencyVeryUrgent',
     'packagingQuantity', 'packagingTotalCost', 'accessoryQuantity', 'accessoryTotalCost',
   ] as const
-
   for (const field of numericFields) {
-    if (typeof input[field] !== 'number' || !Number.isFinite(input[field]) || input[field] < 0) {
-      throw new Error('Revise os parâmetros informados.')
-    }
+    if (typeof input[field] !== 'number' || !Number.isFinite(input[field]) || input[field] < 0) throw new Error('Revise os parâmetros informados.')
   }
-  if (typeof input.roundFinalValue !== 'boolean') {
-    throw new Error('Revise os parâmetros informados.')
-  }
-
+  if (typeof input.roundFinalValue !== 'boolean') throw new Error('Revise os parâmetros informados.')
   return {
     hourlyRate: input.hourlyRate as number,
     profitMargin: input.profitMargin as number,
@@ -100,20 +91,20 @@ function validateSettings(value: unknown): CalculatorSettings {
 }
 
 export async function saveCalculatorSettings(value: unknown) {
-  await requireLegacyDataAccess('calculator')
+  const user = await requireLegacyDataAccess('calculator')
   const settings = validateSettings(value)
   try {
     await db.execute(sql`
     INSERT INTO calculator_settings (
-      id, hourly_rate, profit_margin, sanding_cost, painting_cost,
+      id, user_id, hourly_rate, profit_margin, sanding_cost, painting_cost,
       urgency_normal, urgency_urgent, urgency_very_urgent,
       packaging_quantity, packaging_total_cost, accessory_quantity, accessory_total_cost, round_final_value, updated_at
     ) VALUES (
-      'default', ${settings.hourlyRate}, ${settings.profitMargin}, ${settings.sandingCost}, ${settings.paintingCost},
+      'default', ${user.id}, ${settings.hourlyRate}, ${settings.profitMargin}, ${settings.sandingCost}, ${settings.paintingCost},
       ${settings.urgencyNormal}, ${settings.urgencyUrgent}, ${settings.urgencyVeryUrgent},
       ${settings.packagingQuantity}, ${settings.packagingTotalCost}, ${settings.accessoryQuantity}, ${settings.accessoryTotalCost}, ${settings.roundFinalValue}, now()
     )
-    ON CONFLICT (id) DO UPDATE SET
+    ON CONFLICT (id, user_id) DO UPDATE SET
       hourly_rate = EXCLUDED.hourly_rate, profit_margin = EXCLUDED.profit_margin,
       sanding_cost = EXCLUDED.sanding_cost, painting_cost = EXCLUDED.painting_cost,
       urgency_normal = EXCLUDED.urgency_normal, urgency_urgent = EXCLUDED.urgency_urgent,

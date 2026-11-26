@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth"
 import { Pool } from "pg"
 import { withVerifiedSsl } from "./db/connection-string"
 
+const globalForAuth = globalThis as typeof globalThis & { authPool?: Pool }
 const connectionString =
   process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
 const secret = process.env.BETTER_AUTH_SECRET
@@ -13,8 +14,6 @@ if (!connectionString) {
 if (!secret) {
   throw new Error("BETTER_AUTH_SECRET must be configured.")
 }
-
-const globalForAuth = globalThis as typeof globalThis & { authPool?: Pool }
 
 const authPool =
   globalForAuth.authPool ??
@@ -28,13 +27,42 @@ if (process.env.NODE_ENV !== "production") globalForAuth.authPool = authPool
 
 export const authDatabase = authPool
 
+const baseURL =
+  process.env.BETTER_AUTH_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.V0_RUNTIME_URL)
+
+const trustedOrigins = [
+  ...(process.env.NODE_ENV === "development"
+    ? [
+        "http://localhost:3000",
+        process.env.V0_RUNTIME_URL,
+        process.env.V0_DEV_APP_URL,
+        process.env.V0_BUILD_URL,
+        process.env.V0_SANDBOX_URL,
+      ].filter((origin): origin is string => Boolean(origin))
+    : []),
+  ...(process.env.NODE_ENV === "production"
+    ? [
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+        process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : undefined,
+      ].filter((origin): origin is string => Boolean(origin))
+    : []),
+]
+
 export const auth = betterAuth({
   database: authPool,
   secret,
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL,
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
-    disableSignUp: process.env.AUTH_PROVISION_MODE !== "1",
+    disableSignUp: false,
     autoSignIn: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
@@ -43,4 +71,14 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 12,
     updateAge: 60 * 60,
   },
+  ...(process.env.NODE_ENV === "development"
+    ? {
+        advanced: {
+          defaultCookieAttributes: {
+            sameSite: "none" as const,
+            secure: true,
+          },
+        },
+      }
+    : {}),
 })

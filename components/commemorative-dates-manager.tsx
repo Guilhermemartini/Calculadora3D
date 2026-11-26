@@ -41,7 +41,7 @@ const dateLabel = (start: string, end: string) => {
 }
 const fileSize = (size: number) => size < 1_000_000 ? `${(size / 1_000).toFixed(0)} KB` : `${(size / 1_000_000).toFixed(2)} MB`
 
-export function CommemorativeDatesManager({ initialDates }: { initialDates: CommemorativeDate[] }) {
+export function CommemorativeDatesManager({ userId, initialDates }: { userId: string; initialDates: CommemorativeDate[] }) {
   const [dates, setDates] = useState(initialDates)
   const [today, setToday] = useState(todayInSaoPaulo)
   const [month, setMonth] = useState("all")
@@ -127,7 +127,7 @@ export function CommemorativeDatesManager({ initialDates }: { initialDates: Comm
     try {
       const originalFilename = file.name
       const metadata = { dateId: modelForm.dateId, modelId: modelForm.model?.id ?? null, modelName: name, originalFilename }
-      const pathname = `commemorative-stl/pending/${crypto.randomUUID()}/${originalFilename.replace(/[\\/]/g, "_")}`
+      const pathname = `commemorative-stl/${userId}/pending/${crypto.randomUUID()}/${originalFilename.replace(/[\\/]/g, "_")}`
       const blob = await uploadToBlob(pathname, file, {
         access: "public",
         handleUploadUrl: "/api/commemorative-stl/upload",

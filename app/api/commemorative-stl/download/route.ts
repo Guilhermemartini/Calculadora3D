@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (!access.ok) return authorizationFailure(access)
   const id = request.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Arquivo não informado.' }, { status: 400 })
-  const result = await db.execute(sql`SELECT original_filename, blob_url FROM commemorative_stl_models WHERE id = ${id} LIMIT 1`)
+  const result = await db.execute(sql`SELECT original_filename, blob_url FROM commemorative_stl_models WHERE id = ${id} AND user_id = ${access.user.id} LIMIT 1`)
   const model = result.rows[0] as { original_filename: string; blob_url: string } | undefined
   if (!model?.blob_url) return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 })
 

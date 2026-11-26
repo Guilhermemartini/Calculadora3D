@@ -35,7 +35,7 @@ async function main() {
     }
 
     console.log(`Created account ${created.user.email} (${created.user.id}).`)
-    if (grantLegacy) console.log("Explicitly granted access to the current shared legacy datasets.")
+    if (grantLegacy) console.log("Explicitly granted access to the selected app modules; each account sees its own records.")
     else console.log("No legacy data access was granted.")
   } finally {
     await authDatabase.end()

@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/login-form"
+import Link from "next/link"
 
 function safeReturnTo(value: string | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/"
@@ -24,14 +25,25 @@ export default async function LoginPage({
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Entrar</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Use a conta criada para você. O cadastro público está desativado.
+          Entre para acessar seu espaço de trabalho ou crie uma conta.
         </p>
+        {params.reason === "account-created" ? (
+          <p role="status" className="mt-4 rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+            Conta criada. Entre para continuar; o acesso aos registros será liberado após aprovação.
+          </p>
+        ) : null}
         {params.reason === "session-expired" ? (
           <p role="status" className="mt-4 rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
             Sua sessão expirou. Entre novamente para continuar.
           </p>
         ) : null}
         <LoginForm returnTo={safeReturnTo(params.returnTo)} />
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Ainda não tem conta?{" "}
+          <Link href="/cadastro" className="font-medium text-foreground underline-offset-4 hover:underline">
+            Criar conta
+          </Link>
+        </p>
       </section>
     </main>
   )

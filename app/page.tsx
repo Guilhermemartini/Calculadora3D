@@ -4,7 +4,7 @@ import { Boxes } from "lucide-react"
 import { requireLegacyPageAccess } from "@/lib/authz"
 
 export default async function Page() {
-  await requireLegacyPageAccess("calculator")
+  const user = await requireLegacyPageAccess("calculator")
   return (
     <AppShell>
       <main className="min-h-svh">
@@ -25,7 +25,7 @@ export default async function Page() {
         </header>
 
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <PricingCalculator />
+          <PricingCalculator userId={user.id} />
         </div>
       </main>
     </AppShell>

@@ -181,7 +181,7 @@ export async function saveNote(input: SaveNoteInput) {
 
   if (input.isNew) {
     const id = input.id ?? crypto.randomUUID()
-    const inserted = await db.execute(sql`INSERT INTO public.notes (id, user_id, title, content, comments, image_paths) VALUES (${id}, ${userId}, ${title}, ${JSON.stringify(content)}::jsonb, ${JSON.stringify(comments)}::jsonb, ${imagePaths}) ON CONFLICT (id) DO NOTHING RETURNING id`)
+    const inserted = await db.execute(sql`INSERT INTO public.notes (id, user_id, title, content, comments, image_paths) VALUES (${id}, ${userId}, ${title}, ${JSON.stringify(content)}::jsonb, ${JSON.stringify(comments)}::jsonb, ${sql.param(imagePaths)}::text[]) ON CONFLICT (id) DO NOTHING RETURNING id`)
     if (!inserted.rows[0]) {
       const existing = await db.execute(sql`SELECT id FROM public.notes WHERE id = ${id} AND user_id = ${userId} LIMIT 1`)
       if (!existing.rows[0]) throw new Error("Não foi possível criar a nota.")
@@ -194,7 +194,7 @@ export async function saveNote(input: SaveNoteInput) {
   const existing = await db.execute(sql`SELECT image_paths FROM public.notes WHERE id = ${input.id} AND user_id = ${userId} LIMIT 1`)
   if (!existing.rows[0]) throw new Error("A nota não foi encontrada.")
   const previous = (existing.rows[0] as { image_paths?: string[] }).image_paths ?? []
-  const result = await db.execute(sql`UPDATE public.notes SET title = ${title}, content = ${JSON.stringify(content)}::jsonb, comments = ${JSON.stringify(comments)}::jsonb, image_paths = ${imagePaths}, updated_at = now() WHERE id = ${input.id} AND user_id = ${userId} RETURNING id`)
+  const result = await db.execute(sql`UPDATE public.notes SET title = ${title}, content = ${JSON.stringify(content)}::jsonb, comments = ${JSON.stringify(comments)}::jsonb, image_paths = ${sql.param(imagePaths)}::text[], updated_at = now() WHERE id = ${input.id} AND user_id = ${userId} RETURNING id`)
   if (!result.rows[0]) throw new Error("A nota não foi encontrada.")
   await deleteRemovedImages(previous, imagePaths)
   revalidatePath("/notas")

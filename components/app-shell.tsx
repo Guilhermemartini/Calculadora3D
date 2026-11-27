@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
-import { Boxes, Calculator, CalendarDays, FileText, Layers, Link2, Menu } from "lucide-react"
+import { Boxes, Calculator, CalendarDays, FileText, Layers, Link2, Menu, StickyNote } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect, useState } from "react"
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/atalhos", label: "Atalhos", icon: Link2 },
   { href: "/orcamentos", label: "Orçamentos", icon: FileText },
+  { href: "/notas", label: "Notas", icon: StickyNote },
 ]
 
 function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
@@ -30,7 +31,7 @@ function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {NAV.map((item) => {
-          const active = pathname === item.href
+          const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))
           const Icon = item.icon
           return (
             <Link

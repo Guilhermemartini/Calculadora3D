@@ -62,9 +62,6 @@ export function generateQuotePDF(input: CalculatorInput, result: CalculationResu
     doc.setTextColor(...COLOR_TEXT)
     doc.text(value, pageWidth - marginX, y, { align: "right" })
     y += 8
-    doc.setDrawColor(...COLOR_LINE)
-    doc.setLineWidth(0.2)
-    doc.line(marginX, y - 2, pageWidth - marginX, y - 2)
   }
 
   section("Detalhes da peça")

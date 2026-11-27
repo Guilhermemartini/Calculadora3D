@@ -63,9 +63,10 @@ function sanitizeNode(value: unknown, userId: string, depth = 0, counter = { val
     node.text = raw.text
   }
 
-  if (raw.attrs !== undefined && raw.attrs !== null) {
-    if (typeof raw.attrs !== "object" || Array.isArray(raw.attrs)) throw new Error("Os atributos da nota não são válidos.")
-    const attrs = raw.attrs as Record<string, unknown>
+  if (raw.attrs !== undefined) {
+    const attrs = raw.attrs && typeof raw.attrs === "object" && !Array.isArray(raw.attrs)
+      ? raw.attrs as Record<string, unknown>
+      : {}
     const safeAttrs: NoteNode["attrs"] = {}
     for (const [key, attribute] of Object.entries(attrs)) {
       if (attribute === null || typeof attribute === "boolean" || typeof attribute === "number") {

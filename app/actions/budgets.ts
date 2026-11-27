@@ -53,10 +53,16 @@ export async function getBudget(id: string) {
 
 export async function saveBudget(input: Omit<Budget, 'createdAt' | 'updatedAt'>) {
   const user = await requireLegacyDataAccess('budgets')
-  if (input.stlFileData && !input.stlFileData.startsWith(`budgets/${user.id}/pending/${input.id}/`)) {
+  const existing = await db.execute(sql`SELECT stl_file_data FROM budgets WHERE id = ${input.id} AND user_id = ${user.id} LIMIT 1`)
+  const existingPathname = (existing.rows[0] as { stl_file_data?: string | null } | undefined)?.stl_file_data ?? null
+  const pendingPathname = `budgets/${user.id}/pending/${input.id}/`
+  if (input.stlFileData && !input.stlFileData.startsWith(pendingPathname) && input.stlFileData !== existingPathname) {
     throw new Error('O arquivo STL não pertence a esta conta ou orçamento.')
   }
   await db.execute(sql`INSERT INTO budgets (id, user_id, name, stl_file_name, stl_file_data, snapshot_data, weight, hours, minutes, print_value, finishes, freight_enabled, origin, destination, distance_km, vehicle, freight_value, total_value) VALUES (${input.id}, ${user.id}, ${input.name}, ${input.stlFileName}, ${input.stlFileData}, ${input.snapshotData}, ${input.weight}, ${input.hours}, ${input.minutes}, ${input.printValue}, ${JSON.stringify(input.finishes)}::jsonb, ${input.freightEnabled}, ${input.origin}, ${input.destination}, ${input.distanceKm}, ${input.vehicle}, ${input.freightValue}, ${input.totalValue}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, stl_file_name = EXCLUDED.stl_file_name, stl_file_data = EXCLUDED.stl_file_data, snapshot_data = EXCLUDED.snapshot_data, weight = EXCLUDED.weight, hours = EXCLUDED.hours, minutes = EXCLUDED.minutes, print_value = EXCLUDED.print_value, finishes = EXCLUDED.finishes, freight_enabled = EXCLUDED.freight_enabled, origin = EXCLUDED.origin, destination = EXCLUDED.destination, distance_km = EXCLUDED.distance_km, vehicle = EXCLUDED.vehicle, freight_value = EXCLUDED.freight_value, total_value = EXCLUDED.total_value, updated_at = now() WHERE budgets.user_id = EXCLUDED.user_id`)
+  if (existingPathname && existingPathname !== input.stlFileData && existingPathname.startsWith(`budgets/${user.id}/`)) {
+    await del(existingPathname).catch((error) => console.error('Budget STL cleanup failed:', error))
+  }
 }
 
 export async function deleteBudget(id: string) {

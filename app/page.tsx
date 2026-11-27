@@ -1,10 +1,15 @@
 import { AppShell } from "@/components/app-shell"
 import { PricingCalculator } from "@/components/pricing-calculator"
 import { Boxes } from "lucide-react"
+import { getBudget } from "@/app/actions/budgets"
 import { requireLegacyPageAccess } from "@/lib/authz"
 
-export default async function Page() {
-  const user = await requireLegacyPageAccess("calculator")
+export default async function Page({ searchParams }: { searchParams: Promise<{ budget?: string }> }) {
+  const [{ budget: budgetId }, user] = await Promise.all([
+    searchParams,
+    requireLegacyPageAccess("calculator"),
+  ])
+  const initialBudget = budgetId ? await getBudget(budgetId) : null
   return (
     <AppShell>
       <main className="min-h-svh">
@@ -25,7 +30,7 @@ export default async function Page() {
         </header>
 
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <PricingCalculator userId={user.id} />
+          <PricingCalculator userId={user.id} initialBudget={initialBudget} />
         </div>
       </main>
     </AppShell>

@@ -1,12 +1,13 @@
 "use client"
 
 import { getCalculatorSettings, saveCalculatorSettings, type CalculatorSettings } from "@/app/actions/settings"
-import { saveBudget } from "@/app/actions/budgets"
+import { saveBudget, type Budget } from "@/app/actions/budgets"
 import { AdvancedParamsSection } from "@/components/advanced-params"
 import { Field, NumberInput, Select, Switch } from "@/components/form-controls"
 import { QuoteDialog } from "@/components/quote-dialog"
 import { SummaryPanel } from "@/components/summary-panel"
 import { Button } from "@/components/ui/button"
+import { createBudgetSnapshot, readBudgetCalculatorData } from "@/lib/budget-snapshot"
 import { upload as uploadToBlob } from "@vercel/blob/client"
 import {
   type AdvancedParams,
@@ -84,9 +85,24 @@ function sameSettings(left: CalculatorSettings | null, right: CalculatorSettings
   return left !== null && JSON.stringify(left) === JSON.stringify(right)
 }
 
-export function PricingCalculator({ userId }: { userId: string }) {
-  const [input, setInput] = useState<CalculatorInput>(DEFAULT_INPUT)
-  const [params, setParams] = useState<AdvancedParams>(DEFAULT_PARAMS)
+export function PricingCalculator({ userId, initialBudget }: { userId: string; initialBudget: Budget | null }) {
+  const initialCalculatorData = useMemo(
+    () => readBudgetCalculatorData(initialBudget?.snapshotData ?? null),
+    [initialBudget?.snapshotData],
+  )
+  const initialInput: CalculatorInput = initialCalculatorData?.input ?? (initialBudget ? {
+    ...DEFAULT_INPUT,
+    weight: initialBudget.weight,
+    hours: initialBudget.hours,
+    minutes: initialBudget.minutes,
+    freightEnabled: initialBudget.freightEnabled,
+    freightOrigin: initialBudget.origin ?? "",
+    freightDestination: initialBudget.destination ?? "",
+    freightDistanceKm: initialBudget.distanceKm,
+    vehicle: initialBudget.vehicle === "motorcycle" ? "motorcycle" : "car",
+  } : DEFAULT_INPUT)
+  const [input, setInput] = useState<CalculatorInput>(initialInput)
+  const [params, setParams] = useState<AdvancedParams>(initialCalculatorData?.params ?? DEFAULT_PARAMS)
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading")
   const [savedSettings, setSavedSettings] = useState<CalculatorSettings | null>(null)
   const [savingSnapshot, setSavingSnapshot] = useState<CalculatorSettings | null>(null)
@@ -94,7 +110,7 @@ export function PricingCalculator({ userId }: { userId: string }) {
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle")
   const savingSettingsRef = useRef(false)
   const [quoteOpen, setQuoteOpen] = useState(false)
-  const [budgetName, setBudgetName] = useState("")
+  const [budgetName, setBudgetName] = useState(initialBudget?.name ?? "")
   const [stlFile, setStlFile] = useState<File | null>(null)
   const [stlUploadProgress, setStlUploadProgress] = useState<number | null>(null)
   const [budgetError, setBudgetError] = useState("")
@@ -108,13 +124,13 @@ export function PricingCalculator({ userId }: { userId: string }) {
     try {
       const result = await getCalculatorSettings()
       const settings = result.exists ? result.settings : settingsFromParams(DEFAULT_PARAMS)
-      setParams(paramsFromSettings(settings))
+      if (!initialCalculatorData) setParams(paramsFromSettings(settings))
       setSavedSettings(settings)
       setLoadState("ready")
     } catch {
       setLoadState("error")
     }
-  }, [])
+  }, [initialCalculatorData])
 
   useEffect(() => {
     void loadSettings()
@@ -179,10 +195,10 @@ export function PricingCalculator({ userId }: { userId: string }) {
     }
     setSavingBudget(true)
     setBudgetError("")
-    const id = crypto.randomUUID()
+    const id = initialBudget?.id ?? crypto.randomUUID()
     let uploadedPathname = ""
     try {
-      let stlFileData: string | null = null
+      let stlFileData: string | null = initialBudget?.stlFileData ?? null
       if (stlFile) {
         setStlUploadProgress(0)
         const safeFilename = stlFile.name.replace(/[\\/\\r\\n]/g, "_")
@@ -197,10 +213,9 @@ export function PricingCalculator({ userId }: { userId: string }) {
         uploadedPathname = blob.pathname
         stlFileData = blob.pathname
       }
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="420"><rect width="100%" height="100%" fill="#171717"/><text x="50%" y="48%" text-anchor="middle" fill="#f97316" font-size="34" font-family="sans-serif">' + budgetName + '</text><text x="50%" y="60%" text-anchor="middle" fill="#a3a3a3" font-size="18" font-family="sans-serif">Preview do modelo 3D</text></svg>'
-      const snapshot = `data:image/svg+xml,${encodeURIComponent(svg)}`
+      const snapshot = createBudgetSnapshot(budgetName.trim(), { input: calculationInput, params })
       await saveBudget({
-        id, name: budgetName.trim(), stlFileName: stlFile?.name ?? null, stlFileData, snapshotData: snapshot,
+        id, name: budgetName.trim(), stlFileName: stlFile?.name ?? initialBudget?.stlFileName ?? null, stlFileData, snapshotData: snapshot,
         weight: input.weight, hours: input.hours, minutes: input.minutes, printValue: result.final,
         finishes: [{ name: FINISHING_LABELS[input.finishing], value: result.finishingCost }, { name: "Embalagem", value: result.packagingCost }, { name: "Acessório", value: result.accessoryCost }].filter((item) => item.value > 0),
         freightEnabled: calculationInput.freightEnabled, origin: calculationInput.freightOrigin || null, destination: calculationInput.freightDestination || null, distanceKm: calculationInput.freightDistanceKm, vehicle: calculationInput.vehicle, freightValue: result.freightCost, totalValue: result.final,
@@ -384,10 +399,10 @@ export function PricingCalculator({ userId }: { userId: string }) {
         </section>
 
         <section className="rounded-2xl border border-border bg-card px-5 py-5 text-card-foreground shadow-sm">
-          <div className="mb-4 flex items-center gap-2.5"><FileText className="size-4 text-primary" /><h2 className="text-base font-semibold">Salvar orçamento</h2></div>
+          <div className="mb-4 flex items-center gap-2.5"><FileText className="size-4 text-primary" /><h2 className="text-base font-semibold">{initialBudget ? "Editar orçamento" : "Salvar orçamento"}</h2></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome do orçamento" htmlFor="budget-name"><input id="budget-name" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} placeholder="Ex.: Suporte de parede" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-3 focus:ring-ring/40" /></Field>
-            <Field label="Modelo STL" htmlFor="budget-stl"><input id="budget-stl" type="file" accept=".stl,model/stl" onChange={(event) => { const file = event.target.files?.[0] ?? null; setBudgetError(""); if (file && !file.name.toLowerCase().endsWith(".stl")) { setBudgetError("Selecione um arquivo com extensão .stl."); event.currentTarget.value = ""; setStlFile(null); return } setStlFile(file) }} className="h-10 w-full cursor-pointer rounded-xl border border-input bg-background px-3 py-2 text-sm" /><span className="mt-1 block truncate text-xs text-muted-foreground">{stlUploadProgress !== null ? `Enviando STL: ${Math.round(stlUploadProgress)}%` : stlFile?.name ?? "Opcional · até 50 MB"}</span></Field>
+            <Field label="Modelo STL" htmlFor="budget-stl"><input id="budget-stl" type="file" accept=".stl,model/stl" onChange={(event) => { const file = event.target.files?.[0] ?? null; setBudgetError(""); if (file && !file.name.toLowerCase().endsWith(".stl")) { setBudgetError("Selecione um arquivo com extensão .stl."); event.currentTarget.value = ""; setStlFile(null); return } setStlFile(file) }} className="h-10 w-full cursor-pointer rounded-xl border border-input bg-background px-3 py-2 text-sm" /><span className="mt-1 block truncate text-xs text-muted-foreground">{stlUploadProgress !== null ? `Enviando STL: ${Math.round(stlUploadProgress)}%` : stlFile?.name ?? initialBudget?.stlFileName ?? "Opcional · até 50 MB"}</span></Field>
           </div>
           {budgetError ? <p role="alert" className="mt-3 text-sm text-destructive">{budgetError}</p> : null}
         </section>
@@ -413,7 +428,7 @@ export function PricingCalculator({ userId }: { userId: string }) {
           <SummaryPanel input={calculationInput} result={result} />
           <Button size="lg" className="h-11 w-full text-sm" onClick={handleSaveBudget} disabled={!budgetName.trim() || savingBudget || loadState !== "ready"}>
             <FileText />
-            {savingBudget ? "Salvando..." : budgetSaved ? "Orçamento salvo" : "Salvar orçamento"}
+            {savingBudget ? "Salvando..." : budgetSaved ? (initialBudget ? "Orçamento atualizado" : "Orçamento salvo") : (initialBudget ? "Salvar alterações" : "Salvar orçamento")}
           </Button>
           <Button variant="outline" size="lg" className="h-11 w-full text-sm" onClick={() => setQuoteOpen(true)} disabled={loadState !== "ready"}>
             Gerar orçamento em PDF
